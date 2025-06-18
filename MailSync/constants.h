@@ -213,6 +213,71 @@ static vector<string> V8_SETUP_QUERIES = {
     "CREATE TABLE `ContactBook` (`id` varchar(40),`accountId` varchar(40), `data` BLOB, `version` INTEGER, PRIMARY KEY (id));",
 };
 
+static vector<string> V9_SETUP_QUERIES = {
+    "CREATE TABLE IF NOT EXISTS `Summary` ("
+        "messageId VARCHAR(40) PRIMARY KEY,"
+        "accountId VARCHAR(8) NOT NULL,"
+        "threadId VARCHAR(40) NOT NULL,"
+        "briefSummary TEXT,"
+        "messageSummary TEXT,"
+        "threadSummary TEXT,"
+        "important INTEGER DEFAULT 0,"
+        "emergency INTEGER DEFAULT 0,"
+        "category TEXT)",
+    
+    "CREATE TABLE IF NOT EXISTS `ContactRelation` ("
+        "id VARCHAR(40) PRIMARY KEY,"
+        "accountId VARCHAR(8) NOT NULL,"
+        "email TEXT NOT NULL,"
+        "relation TEXT)",
+
+    "ALTER TABLE `File` ADD COLUMN size INTEGER DEFAULT 0",
+    "ALTER TABLE `File` ADD COLUMN contentType TEXT",
+    "ALTER TABLE `File` ADD COLUMN messageId VARCHAR(40)",
+    "ALTER TABLE `File` ADD COLUMN updateTime DATETIME",
+    
+    // "CREATE INDEX IF NOT EXISTS FileMessageIdIndex ON File(messageId)",
+    // "CREATE INDEX IF NOT EXISTS FileContentTypeIndex ON File(contentType)",
+    // "CREATE INDEX IF NOT EXISTS FileUpdateTimeIndex ON File(updateTime)",
+    
+    // "UPDATE File SET size = json_extract(data, '$.size') WHERE json_extract(data, '$.size') IS NOT NULL",
+    // "UPDATE File SET contentType = json_extract(data, '$.contentType') WHERE json_extract(data, '$.contentType') IS NOT NULL",
+    // "UPDATE File SET messageId = json_extract(data, '$.messageId') WHERE json_extract(data, '$.messageId') IS NOT NULL",
+    // "UPDATE File SET updateTime = json_extract(data, '$.updateTime') WHERE json_extract(data, '$.updateTime') IS NOT NULL",
+    
+    "CREATE VIEW IF NOT EXISTS MessageFullWithFileView AS "
+    "SELECT "
+    "  m.id AS messageId, "
+    "  m.accountId, "
+    "  m.subject, "
+    "  strftime('%Y-%m-%dT%H:%M:%SZ', m.date, 'unixepoch') AS date, "
+    "  m.unread, "
+    "  m.starred, "
+    "  m.draft, "
+    "  m.threadId, "
+    "  s.MessageSummary, "
+    "  s.ThreadSummary, "
+    "  s.Important, "
+    "  s.Emergency, "
+    "  s.Catagory, "
+    "  json_extract(m.data, '$.bcc') AS bcc, "
+    "  json_extract(m.data, '$.cc') AS cc, "
+    "  json_extract(m.data, '$.from') AS from_, "
+    "  json_extract(m.data, '$.to') AS to_, "
+    "  json_extract(m.data, '$.folder.id') AS folder_id, "
+    "  json_extract(m.data, '$.folder.path') AS folder_path, "
+    "  f.id AS file_id, "
+    "  f.filename, "
+    "  f.size, "
+    "  f.contentType, "
+    "  json_extract(f.data, '$.messageId') AS file_message_id, "
+    "  strftime('%Y-%m-%dT%H:%M:%SZ', f.updateTime, 'unixepoch') AS updateTimeISO, "
+    "  m.data AS message_raw_json, "
+    "  f.data AS file_raw_json "
+    "FROM Message m "
+    "LEFT JOIN Summary s ON m.id = s.MessageId "
+    "LEFT JOIN File f ON json_extract(f.data, '$.messageId') = m.id"
+};
 
 static map<string, string> COMMON_FOLDER_NAMES = {
     {"gel\xc3\xb6scht", "trash"},

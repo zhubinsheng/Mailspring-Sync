@@ -427,6 +427,8 @@ void runListenOnMainThread(shared_ptr<Account> account) {
 
         try {
             string type = packet.count("type") ? packet["type"].get<string>() : "";
+            spdlog::get("logger")->info("Received packet type: {}", type);
+            spdlog::get("logger")->info("Account info - id: {}, email: {}", account->id(), account->emailAddress());
 
             if (type == "queue-task") {
                 packet["task"]["v"] = 0;
@@ -500,6 +502,27 @@ void runListenOnMainThread(shared_ptr<Account> account) {
             }
             if (type == "test-segfault") {
                 raise(SIGSEGV);
+            }
+
+        
+            if(packet.count("data") == 0) {
+                continue;
+            }
+
+            if (type == "summary-update") {
+                store.handleSummaryUpdate(packet["data"], account);
+            }
+
+            if (type == "summary-delete") {
+                store.handleSummaryDelete(packet["data"], account);
+            }
+
+            if (type == "contact-relation-update") {
+                store.handleContactRelationUpdate(packet["data"], account);
+            }
+
+            if (type == "contact-relation-delete") {
+                store.handleContactRelationDelete(packet["data"], account);
             }
         } catch (...) {
             exceptions::logCurrentExceptionWithStackTrace();

@@ -100,7 +100,7 @@ MailStore::MailStore() :
     SQLite::Statement(_db, "PRAGMA main.synchronous = NORMAL").exec();
 }
 
-static int CURRENT_VERSION = 8;
+static int CURRENT_VERSION = 9;
 static string VACUUM_TIME_KEY = "VACUUM_TIME";
 static time_t VACUUM_INTERVAL = 14 * 24 * 60 * 60; // 14 days
 
@@ -147,6 +147,12 @@ void MailStore::migrate() {
     }
     if (version < 8) {
         for (string sql : V8_SETUP_QUERIES) {
+            SQLite::Statement(_db, sql).exec();
+        }
+    }
+
+    if (version < 9) {
+        for (string sql : V9_SETUP_QUERIES) {
             SQLite::Statement(_db, sql).exec();
         }
     }
@@ -523,6 +529,136 @@ void MailStore::saveDetatchedPluginMetadata(Metadata & m) {
 
 void MailStore::setStreamDelay(int streamMaxDelay) {
     _streamMaxDelay = streamMaxDelay;
+}
+
+#pragma mark Summary Queries
+
+shared_ptr<Summary> MailStore::findSummaryForThread(string accountId, string threadId) {
+    assertCorrectThread();
+    return find<Summary>(Query().equal("accountId", accountId).equal("threadId", threadId));
+}
+
+void MailStore::handleSummaryUpdate(json data, shared_ptr<Account> account) {
+    assertCorrectThread();
+    if (data.count("threadId") == 0) {
+        spdlog::get("logger")->error("handleSummaryUpdate: threadId is required");
+        return;
+    }
+
+    string threadId = data["threadId"].get<string>();
+    auto existing = findSummaryForThread(account->accountId(), threadId);
+    if (existing) {
+        if (data.count("messageSummary") > 0) {
+            string messageSummary = data["messageSummary"].get<string>();
+            existing->setMessageSummary(messageSummary);
+        }
+        if (data.count("briefSummary") > 0) {
+            string briefSummary = data["briefSummary"].get<string>();
+            existing->setBriefSummary(briefSummary);
+        }
+        if (data.count("threadSummary") > 0) {
+            string threadSummary = data["threadSummary"].get<string>();
+            existing->setThreadSummary(threadSummary);
+        }
+        if (data.count("important") > 0) {
+            bool important = data["important"].get<bool>();
+            existing->setImportant(important);
+        }
+        if (data.count("emergency") > 0) {
+            bool emergency = data["emergency"].get<bool>();
+            existing->setEmergency(emergency);
+        }
+        if (data.count("category") > 0) {
+            string category = data["category"].get<string>();
+            existing->setCategory(category);
+        }
+        save(existing.get());
+    } else {
+        string messageSummary = data.value("messageSummary", "");
+        string briefSummary = data.value("briefSummary", "");
+        string threadSummary = data.value("threadSummary", "");
+        bool important = data.value("important", false);
+        bool emergency = data.value("emergency", false);
+        string category = data.value("category", "");
+        
+        auto newSummary = make_shared<Summary>();
+        newSummary->setAccountId(account->accountId());
+        newSummary->setThreadId(threadId);
+        newSummary->setMessageSummary(messageSummary);
+        newSummary->setBriefSummary(briefSummary);
+        newSummary->setThreadSummary(threadSummary);
+        newSummary->setImportant(important);
+        newSummary->setEmergency(emergency);
+        newSummary->setCategory(category);
+        save(newSummary.get());
+    }
+}
+
+void MailStore::handleSummaryDelete(json data, shared_ptr<Account> account) {
+    assertCorrectThread();
+    if (data.count("threadId") == 0) {
+        spdlog::get("logger")->error("handleSummaryDelete: threadId is required");
+        return;
+    }
+    string threadId = data["threadId"].get<string>();
+    
+    auto existing = findSummaryForThread(account->accountId(), threadId);
+    if (existing) {
+        remove(existing.get());
+    }else{
+        spdlog::get("logger")->error("handleSummaryDelete: summary not found for threadId: {}", threadId);
+    }
+}
+
+#pragma mark Contact Relation Queries
+
+shared_ptr<ContactRelation> MailStore::findContactRelation(string accountId, string email) {
+    assertCorrectThread();
+    return find<ContactRelation>(Query().equal("accountId", accountId).equal("email", email));
+}
+
+void MailStore::updateContactRelation(string accountId, string email, string relation) {
+    assertCorrectThread();
+    auto existing = findContactRelation(accountId, email);
+    if (existing) {
+        existing->setRelation(relation);
+        save(existing.get());
+    } else {
+        auto newRelation = make_shared<ContactRelation>(accountId, email, relation);
+        save(newRelation.get());
+    }
+}
+
+void MailStore::handleContactRelationUpdate(json data, shared_ptr<Account> account) {
+    assertCorrectThread();
+    if (data.count("email") == 0) {
+        spdlog::get("logger")->error("handleContactRelationUpdate: email is required");
+        return;
+    }
+    if (data.count("relation") == 0) {
+        spdlog::get("logger")->error("handleContactRelationUpdate: relation is required");
+        return;
+    }
+    string email = data["email"].get<string>();
+    string relation = data["relation"].get<string>();
+    
+    updateContactRelation(account->accountId(), email, relation);
+}
+
+void MailStore::handleContactRelationDelete(json data, shared_ptr<Account> account) {
+    assertCorrectThread();
+    if (data.count("email") == 0) {
+        spdlog::get("logger")->error("handleContactRelationDelete: email is required");
+        return;
+    }
+    string email = data["email"].get<string>();
+    
+    auto existing = findContactRelation(account->accountId(), email);
+    if (existing) {
+        remove(existing.get());
+    }else{
+        spdlog::get("logger")->error("handleContactRelationDelete: contact relation not found for email: {}", email);
+    }
 }
 
 
