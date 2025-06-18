@@ -504,7 +504,6 @@ void runListenOnMainThread(shared_ptr<Account> account) {
                 raise(SIGSEGV);
             }
 
-        
             if(packet.count("data") == 0) {
                 continue;
             }
