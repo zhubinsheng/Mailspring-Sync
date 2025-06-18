@@ -235,16 +235,7 @@ static vector<string> V9_SETUP_QUERIES = {
     "ALTER TABLE `File` ADD COLUMN contentType TEXT",
     "ALTER TABLE `File` ADD COLUMN messageId VARCHAR(40)",
     "ALTER TABLE `File` ADD COLUMN updateTime DATETIME",
-    
-    // "CREATE INDEX IF NOT EXISTS FileMessageIdIndex ON File(messageId)",
-    // "CREATE INDEX IF NOT EXISTS FileContentTypeIndex ON File(contentType)",
-    // "CREATE INDEX IF NOT EXISTS FileUpdateTimeIndex ON File(updateTime)",
-    
-    // "UPDATE File SET size = json_extract(data, '$.size') WHERE json_extract(data, '$.size') IS NOT NULL",
-    // "UPDATE File SET contentType = json_extract(data, '$.contentType') WHERE json_extract(data, '$.contentType') IS NOT NULL",
-    // "UPDATE File SET messageId = json_extract(data, '$.messageId') WHERE json_extract(data, '$.messageId') IS NOT NULL",
-    // "UPDATE File SET updateTime = json_extract(data, '$.updateTime') WHERE json_extract(data, '$.updateTime') IS NOT NULL",
-    
+
     "CREATE VIEW IF NOT EXISTS MessageFullWithFileView AS "
     "SELECT "
     "  m.id AS messageId, "

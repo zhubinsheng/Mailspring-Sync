@@ -547,51 +547,36 @@ void MailStore::handleSummaryUpdate(json data, shared_ptr<Account> account) {
 
     string threadId = data["threadId"].get<string>();
     auto existing = findSummaryForThread(account->accountId(), threadId);
-    if (existing) {
-        if (data.count("messageSummary") > 0) {
-            string messageSummary = data["messageSummary"].get<string>();
-            existing->setMessageSummary(messageSummary);
-        }
-        if (data.count("briefSummary") > 0) {
-            string briefSummary = data["briefSummary"].get<string>();
-            existing->setBriefSummary(briefSummary);
-        }
-        if (data.count("threadSummary") > 0) {
-            string threadSummary = data["threadSummary"].get<string>();
-            existing->setThreadSummary(threadSummary);
-        }
-        if (data.count("important") > 0) {
-            bool important = data["important"].get<bool>();
-            existing->setImportant(important);
-        }
-        if (data.count("emergency") > 0) {
-            bool emergency = data["emergency"].get<bool>();
-            existing->setEmergency(emergency);
-        }
-        if (data.count("category") > 0) {
-            string category = data["category"].get<string>();
-            existing->setCategory(category);
-        }
-        save(existing.get());
-    } else {
-        string messageSummary = data.value("messageSummary", "");
-        string briefSummary = data.value("briefSummary", "");
-        string threadSummary = data.value("threadSummary", "");
-        bool important = data.value("important", false);
-        bool emergency = data.value("emergency", false);
-        string category = data.value("category", "");
-        
-        auto newSummary = make_shared<Summary>();
-        newSummary->setAccountId(account->accountId());
-        newSummary->setThreadId(threadId);
-        newSummary->setMessageSummary(messageSummary);
-        newSummary->setBriefSummary(briefSummary);
-        newSummary->setThreadSummary(threadSummary);
-        newSummary->setImportant(important);
-        newSummary->setEmergency(emergency);
-        newSummary->setCategory(category);
-        save(newSummary.get());
+
+    if (!existing) {
+        existing = make_shared<Summary>();
+        existing->setAccountId(account->accountId());
+        existing->setThreadId(threadId);
     }
+
+    const map<string, function<void(const string&)>> fieldSetters = {
+        {"messageSummary", [&](const string& val) { existing->setMessageSummary(val); }},
+        {"briefSummary", [&](const string& val) { existing->setBriefSummary(val); }},
+        {"threadSummary", [&](const string& val) { existing->setThreadSummary(val); }},
+        {"category", [&](const string& val) { existing->setCategory(val); }}
+    };
+
+    // 更新字符串字段
+    for (const auto& [field, setter] : fieldSetters) {
+        if (data.count(field) > 0) {
+            setter(data[field].get<string>());
+        }
+    }
+
+    // 更新布尔字段
+    if (data.count("important") > 0) {
+        existing->setImportant(data["important"].get<bool>());
+    }
+    if (data.count("emergency") > 0) {
+        existing->setEmergency(data["emergency"].get<bool>());
+    }
+
+    save(existing.get());
 }
 
 void MailStore::handleSummaryDelete(json data, shared_ptr<Account> account) {
