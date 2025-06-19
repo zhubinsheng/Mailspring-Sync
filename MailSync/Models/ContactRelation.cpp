@@ -28,7 +28,7 @@ ContactRelation::ContactRelation(SQLite::Statement & query) :
 }
 
 string ContactRelation::constructorName() {
-    return _data["__cls"].get<string>();
+    return _data["__cls"].is_null() ? "" : _data["__cls"].get<string>();
 }
 
 string ContactRelation::tableName() {
@@ -36,7 +36,7 @@ string ContactRelation::tableName() {
 }
 
 string ContactRelation::email() {
-    return _data["email"].get<string>();
+    return _data["email"].is_null() ? "" : _data["email"].get<string>();
 }
 
 void ContactRelation::setEmail(string s) {
@@ -44,7 +44,7 @@ void ContactRelation::setEmail(string s) {
 }
 
 string ContactRelation::relation() {
-    return _data["relation"].get<string>();
+    return _data["relation"].is_null() ? "" : _data["relation"].get<string>();
 }
 
 void ContactRelation::setRelation(string s) {
