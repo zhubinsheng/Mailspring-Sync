@@ -344,6 +344,10 @@ void MailStore::commitTransaction() {
 void MailStore::save(MailModel * model) {
     assertCorrectThread();
 
+    // DEBUG: 在save方法开始时打印模型基本信息  
+    spdlog::get("logger")->info("save: Entering save method for model type='{}', id='{}', version={}", 
+                                model->tableName(), model->id(), model->version());
+
     model->incrementVersion();
     model->beforeSave(this);
 
@@ -365,7 +369,15 @@ void MailStore::save(MailModel * model) {
         }
         auto query = _saveUpdateQueries[tableName];
         query->reset();
+        
+        // DEBUG: 在bindToQuery调用前
+        spdlog::get("logger")->info("save: About to call bindToQuery for UPDATE on table '{}', model id='{}'", tableName, model->id());
+        
         model->bindToQuery(query.get());
+        
+        // DEBUG: bindToQuery调用成功，准备执行查询
+        spdlog::get("logger")->info("save: bindToQuery completed successfully for UPDATE, executing query...");
+        
         query->exec();
         
     } else {
@@ -385,7 +397,15 @@ void MailStore::save(MailModel * model) {
         
         auto query = _saveInsertQueries[tableName];
         query->reset();
+        
+        // DEBUG: 在bindToQuery调用前
+        spdlog::get("logger")->info("save: About to call bindToQuery for INSERT on table '{}', model id='{}'", tableName, model->id());
+        
         model->bindToQuery(query.get());
+        
+        // DEBUG: bindToQuery调用成功，准备执行查询
+        spdlog::get("logger")->info("save: bindToQuery completed successfully for INSERT, executing query...");
+        
         query->exec();
     }
 
@@ -540,54 +560,228 @@ shared_ptr<Summary> MailStore::findSummaryForThread(string accountId, string thr
 
 void MailStore::handleSummaryUpdate(json data, shared_ptr<Account> account) {
     assertCorrectThread();
-    if (data.count("threadId") == 0) {
-        spdlog::get("logger")->error("handleSummaryUpdate: threadId is required");
+    
+    // 打印收到的完整数据用于调试
+    spdlog::get("logger")->info("handleSummaryUpdate received data: {}", data.dump());
+    
+    // DEBUG: 检查account对象
+    if (!account) {
+        spdlog::get("logger")->error("handleSummaryUpdate: account is null!");
+        return;
+    }
+    spdlog::get("logger")->info("handleSummaryUpdate: account object exists");
+    
+    if (data.count("threadId") == 0 || data["threadId"].is_null()) {
+        spdlog::get("logger")->error("handleSummaryUpdate: threadId is required and cannot be null");
         return;
     }
 
-    string threadId = data["threadId"].get<string>();
-    auto existing = findSummaryForThread(account->accountId(), threadId);
+    // DEBUG: 尝试获取threadId
+    spdlog::get("logger")->info("handleSummaryUpdate: About to extract threadId from JSON");
+    string threadId;
+    try {
+        threadId = data["threadId"].get<string>();
+        spdlog::get("logger")->info("handleSummaryUpdate: threadId extracted: '{}'", threadId);
+    } catch (const std::exception& e) {
+        spdlog::get("logger")->error("handleSummaryUpdate: Exception extracting threadId: {}", e.what());
+        return;
+    }
+    
+    // DEBUG: 尝试获取account->accountId() - 添加防护性检查
+    spdlog::get("logger")->info("handleSummaryUpdate: About to call account->accountId()");
+    string accountId;
+    try {
+        // 首先检查account对象的内部数据结构
+        if (account->_data.count("aid") == 0 || account->_data["aid"].is_null()) {
+            spdlog::get("logger")->error("handleSummaryUpdate: account _data['aid'] is missing or null");
+            // 尝试从任务数据中获取accountId作为fallback
+            if (data.count("aid") > 0 && !data["aid"].is_null()) {
+                accountId = data["aid"].get<string>();
+                spdlog::get("logger")->info("handleSummaryUpdate: Using accountId from task data as fallback: '{}'", accountId);
+            } else {
+                spdlog::get("logger")->error("handleSummaryUpdate: Cannot determine accountId from either account object or task data");
+                return;
+            }
+        } else {
+            accountId = account->accountId();
+            spdlog::get("logger")->info("handleSummaryUpdate: account->accountId() returned: '{}'", accountId);
+        }
+    } catch (const std::exception& e) {
+        spdlog::get("logger")->error("handleSummaryUpdate: Exception calling account->accountId(): {}", e.what());
+        // 尝试从任务数据中获取accountId作为fallback
+        if (data.count("aid") > 0 && !data["aid"].is_null()) {
+            try {
+                accountId = data["aid"].get<string>();
+                spdlog::get("logger")->info("handleSummaryUpdate: Using accountId from task data as fallback: '{}'", accountId);
+            } catch (const std::exception& e2) {
+                spdlog::get("logger")->error("handleSummaryUpdate: Exception extracting accountId from task data: {}", e2.what());
+                return;
+            }
+        } else {
+            spdlog::get("logger")->error("handleSummaryUpdate: Cannot determine accountId from either account object or task data");
+            return;
+        }
+    }
+    
+    spdlog::get("logger")->info("handleSummaryUpdate: About to call findSummaryForThread");
+    auto existing = findSummaryForThread(accountId, threadId);
 
     if (!existing) {
-        existing = make_shared<Summary>();
-        existing->setAccountId(account->accountId());
-        existing->setThreadId(threadId);
+        spdlog::get("logger")->info("handleSummaryUpdate: Creating new Summary object");
+        string summaryId = MailUtils::idRandomlyGenerated();
+        spdlog::get("logger")->info("handleSummaryUpdate: Generated summaryId: '{}'", summaryId);
+        
+        try {
+            existing = make_shared<Summary>(summaryId, accountId, 0);
+            spdlog::get("logger")->info("handleSummaryUpdate: Summary object created successfully");
+        } catch (const std::exception& e) {
+            spdlog::get("logger")->error("handleSummaryUpdate: Exception creating Summary object: {}", e.what());
+            return;
+        }
+        
+        try {
+            existing->setThreadId(threadId);
+            spdlog::get("logger")->info("handleSummaryUpdate: setThreadId completed");
+        } catch (const std::exception& e) {
+            spdlog::get("logger")->error("handleSummaryUpdate: Exception in setThreadId: {}", e.what());
+            return;
+        }
+        
+        // 设置 messageId（如果提供的话）
+        if (data.count("messageId") > 0 && !data["messageId"].is_null()) {
+            try {
+                string messageId = data["messageId"].get<string>();
+                existing->setMessageId(messageId);
+                spdlog::get("logger")->info("handleSummaryUpdate: setMessageId completed with value: '{}'", messageId);
+            } catch (const std::exception& e) {
+                spdlog::get("logger")->error("handleSummaryUpdate: Exception setting messageId: {}", e.what());
+                return;
+            }
+        } else {
+            try {
+                existing->setMessageId(""); // 设置默认值
+                spdlog::get("logger")->info("handleSummaryUpdate: setMessageId completed with empty value");
+            } catch (const std::exception& e) {
+                spdlog::get("logger")->error("handleSummaryUpdate: Exception setting empty messageId: {}", e.what());
+                return;
+            }
+        }
+    } else {
+        spdlog::get("logger")->info("handleSummaryUpdate: Using existing Summary object with id: '{}'", existing->id());
     }
 
-    const map<string, function<void(const string&)>> fieldSetters = {
-        {"messageSummary", [&](const string& val) { existing->setMessageSummary(val); }},
-        {"briefSummary", [&](const string& val) { existing->setBriefSummary(val); }},
-        {"threadSummary", [&](const string& val) { existing->setThreadSummary(val); }},
-        {"category", [&](const string& val) { existing->setCategory(val); }}
-    };
+    spdlog::get("logger")->info("handleSummaryUpdate: Starting field updates");
 
     // 更新字符串字段
-    for (const auto& [field, setter] : fieldSetters) {
-        if (data.count(field) > 0) {
-            setter(data[field].get<string>());
+    const vector<string> stringFields = {"messageSummary", "briefSummary", "threadSummary", "category"};
+    for (const string& field : stringFields) {
+        if (data.count(field) > 0 && !data[field].is_null()) {
+            try {
+                string value = data[field].get<string>();
+                spdlog::get("logger")->info("handleSummaryUpdate: Setting {} to '{}'", field, value);
+                
+                if (field == "messageSummary") {
+                    existing->setMessageSummary(value);
+                } else if (field == "briefSummary") {
+                    existing->setBriefSummary(value);
+                } else if (field == "threadSummary") {
+                    existing->setThreadSummary(value);
+                } else if (field == "category") {
+                    existing->setCategory(value);
+                }
+                
+                spdlog::get("logger")->info("handleSummaryUpdate: Successfully set {}", field);
+            } catch (const std::exception& e) {
+                spdlog::get("logger")->error("handleSummaryUpdate: Exception setting {}: {}", field, e.what());
+                return;
+            }
+        } else {
+            spdlog::get("logger")->info("handleSummaryUpdate: Skipping {} (not present or null)", field);
         }
     }
 
     // 更新布尔字段
-    if (data.count("important") > 0) {
-        existing->setImportant(data["important"].get<bool>());
+    if (data.count("important") > 0 && !data["important"].is_null()) {
+        try {
+            bool value = data["important"].get<bool>();
+            spdlog::get("logger")->info("handleSummaryUpdate: Setting important to {}", value);
+            existing->setImportant(value);
+            spdlog::get("logger")->info("handleSummaryUpdate: Successfully set important");
+        } catch (const std::exception& e) {
+            spdlog::get("logger")->error("handleSummaryUpdate: Exception setting important: {}", e.what());
+            return;
+        }
     }
-    if (data.count("emergency") > 0) {
-        existing->setEmergency(data["emergency"].get<bool>());
+    
+    if (data.count("emergency") > 0 && !data["emergency"].is_null()) {
+        try {
+            bool value = data["emergency"].get<bool>();
+            spdlog::get("logger")->info("handleSummaryUpdate: Setting emergency to {}", value);
+            existing->setEmergency(value);
+            spdlog::get("logger")->info("handleSummaryUpdate: Successfully set emergency");
+        } catch (const std::exception& e) {
+            spdlog::get("logger")->error("handleSummaryUpdate: Exception setting emergency: {}", e.what());
+            return;
+        }
     }
+
+    // DEBUG: 在保存Summary前打印对象状态
+    spdlog::get("logger")->info("handleSummaryUpdate: About to save Summary object with id='{}', accountId='{}', threadId='{}', version={}", 
+                                existing->id(), existing->accountId(), existing->threadId(), existing->version());
+    spdlog::get("logger")->info("handleSummaryUpdate: Summary fields - messageId='{}', messageSummary='{}', briefSummary='{}', threadSummary='{}'", 
+                                existing->messageId(), existing->messageSummary(), existing->briefSummary(), existing->threadSummary());
 
     save(existing.get());
 }
 
 void MailStore::handleSummaryDelete(json data, shared_ptr<Account> account) {
     assertCorrectThread();
-    if (data.count("threadId") == 0) {
-        spdlog::get("logger")->error("handleSummaryDelete: threadId is required");
+    
+    // 打印收到的完整数据用于调试
+    spdlog::get("logger")->info("handleSummaryDelete received data: {}", data.dump());
+    
+    if (data.count("threadId") == 0 || data["threadId"].is_null()) {
+        spdlog::get("logger")->error("handleSummaryDelete: threadId is required and cannot be null");
         return;
     }
     string threadId = data["threadId"].get<string>();
     
-    auto existing = findSummaryForThread(account->accountId(), threadId);
+    // 添加防护性检查获取accountId
+    string accountId;
+    try {
+        // 首先检查account对象的内部数据结构
+        if (!account || account->_data.count("aid") == 0 || account->_data["aid"].is_null()) {
+            spdlog::get("logger")->error("handleSummaryDelete: account is null or _data['aid'] is missing/null");
+            // 尝试从任务数据中获取accountId作为fallback
+            if (data.count("aid") > 0 && !data["aid"].is_null()) {
+                accountId = data["aid"].get<string>();
+                spdlog::get("logger")->info("handleSummaryDelete: Using accountId from task data as fallback: '{}'", accountId);
+            } else {
+                spdlog::get("logger")->error("handleSummaryDelete: Cannot determine accountId from either account object or task data");
+                return;
+            }
+        } else {
+            accountId = account->accountId();
+            spdlog::get("logger")->info("handleSummaryDelete: account->accountId() returned: '{}'", accountId);
+        }
+    } catch (const std::exception& e) {
+        spdlog::get("logger")->error("handleSummaryDelete: Exception calling account->accountId(): {}", e.what());
+        // 尝试从任务数据中获取accountId作为fallback
+        if (data.count("aid") > 0 && !data["aid"].is_null()) {
+            try {
+                accountId = data["aid"].get<string>();
+                spdlog::get("logger")->info("handleSummaryDelete: Using accountId from task data as fallback: '{}'", accountId);
+            } catch (const std::exception& e2) {
+                spdlog::get("logger")->error("handleSummaryDelete: Exception extracting accountId from task data: {}", e2.what());
+                return;
+            }
+        } else {
+            spdlog::get("logger")->error("handleSummaryDelete: Cannot determine accountId from either account object or task data");
+            return;
+        }
+    }
+    
+    auto existing = findSummaryForThread(accountId, threadId);
     if (existing) {
         remove(existing.get());
     }else{
@@ -607,38 +801,158 @@ void MailStore::updateContactRelation(string accountId, string email, string rel
     auto existing = findContactRelation(accountId, email);
     if (existing) {
         existing->setRelation(relation);
+        
+        // DEBUG: 在保存现有ContactRelation前打印对象状态
+        spdlog::get("logger")->info("updateContactRelation: About to save existing ContactRelation with id='{}', accountId='{}', email='{}', relation='{}', version={}", 
+                                    existing->id(), existing->accountId(), existing->email(), existing->relation(), existing->version());
+        
         save(existing.get());
     } else {
         auto newRelation = make_shared<ContactRelation>(accountId, email, relation);
+        
+        // DEBUG: 在保存新ContactRelation前打印对象状态
+        spdlog::get("logger")->info("updateContactRelation: About to save new ContactRelation with id='{}', accountId='{}', email='{}', relation='{}', version={}", 
+                                    newRelation->id(), newRelation->accountId(), newRelation->email(), newRelation->relation(), newRelation->version());
+        
         save(newRelation.get());
     }
 }
 
 void MailStore::handleContactRelationUpdate(json data, shared_ptr<Account> account) {
     assertCorrectThread();
-    if (data.count("email") == 0) {
-        spdlog::get("logger")->error("handleContactRelationUpdate: email is required");
-        return;
-    }
-    if (data.count("relation") == 0) {
-        spdlog::get("logger")->error("handleContactRelationUpdate: relation is required");
-        return;
-    }
-    string email = data["email"].get<string>();
-    string relation = data["relation"].get<string>();
     
-    updateContactRelation(account->accountId(), email, relation);
+    // 打印收到的完整数据用于调试
+    spdlog::get("logger")->info("handleContactRelationUpdate received data: {}", data.dump());
+    
+    // DEBUG: 检查account对象
+    if (!account) {
+        spdlog::get("logger")->error("handleContactRelationUpdate: account is null!");
+        return;
+    }
+    spdlog::get("logger")->info("handleContactRelationUpdate: account object exists");
+    
+    if (data.count("email") == 0 || data["email"].is_null()) {
+        spdlog::get("logger")->error("handleContactRelationUpdate: email is required and cannot be null");
+        return;
+    }
+    if (data.count("relation") == 0 || data["relation"].is_null()) {
+        spdlog::get("logger")->error("handleContactRelationUpdate: relation is required and cannot be null");
+        return;
+    }
+    
+    // DEBUG: 尝试获取account->accountId() - 添加防护性检查
+    spdlog::get("logger")->info("handleContactRelationUpdate: About to call account->accountId()");
+    string accountId;
+    try {
+        // 首先检查account对象的内部数据结构
+        if (account->_data.count("aid") == 0 || account->_data["aid"].is_null()) {
+            spdlog::get("logger")->error("handleContactRelationUpdate: account _data['aid'] is missing or null");
+            // 尝试从任务数据中获取accountId作为fallback
+            if (data.count("aid") > 0 && !data["aid"].is_null()) {
+                accountId = data["aid"].get<string>();
+                spdlog::get("logger")->info("handleContactRelationUpdate: Using accountId from task data as fallback: '{}'", accountId);
+            } else {
+                spdlog::get("logger")->error("handleContactRelationUpdate: Cannot determine accountId from either account object or task data");
+                return;
+            }
+        } else {
+            accountId = account->accountId();
+            spdlog::get("logger")->info("handleContactRelationUpdate: account->accountId() returned: '{}'", accountId);
+        }
+    } catch (const std::exception& e) {
+        spdlog::get("logger")->error("handleContactRelationUpdate: Exception calling account->accountId(): {}", e.what());
+        // 尝试从任务数据中获取accountId作为fallback
+        if (data.count("aid") > 0 && !data["aid"].is_null()) {
+            try {
+                accountId = data["aid"].get<string>();
+                spdlog::get("logger")->info("handleContactRelationUpdate: Using accountId from task data as fallback: '{}'", accountId);
+            } catch (const std::exception& e2) {
+                spdlog::get("logger")->error("handleContactRelationUpdate: Exception extracting accountId from task data: {}", e2.what());
+                return;
+            }
+        } else {
+            spdlog::get("logger")->error("handleContactRelationUpdate: Cannot determine accountId from either account object or task data");
+            return;
+        }
+    }
+    
+    // DEBUG: 尝试从JSON获取字符串
+    spdlog::get("logger")->info("handleContactRelationUpdate: About to extract email from JSON");
+    string email;
+    try {
+        email = data["email"].get<string>();
+        spdlog::get("logger")->info("handleContactRelationUpdate: email extracted: '{}'", email);
+    } catch (const std::exception& e) {
+        spdlog::get("logger")->error("handleContactRelationUpdate: Exception extracting email: {}", e.what());
+        return;
+    }
+    
+    spdlog::get("logger")->info("handleContactRelationUpdate: About to extract relation from JSON");
+    string relation;
+    try {
+        relation = data["relation"].get<string>();
+        spdlog::get("logger")->info("handleContactRelationUpdate: relation extracted: '{}'", relation);
+    } catch (const std::exception& e) {
+        spdlog::get("logger")->error("handleContactRelationUpdate: Exception extracting relation: {}", e.what());
+        return;
+    }
+    
+    spdlog::get("logger")->info("handleContactRelationUpdate: About to call updateContactRelation with accountId='{}', email='{}', relation='{}'", 
+                                accountId, email, relation);
+    
+    updateContactRelation(accountId, email, relation);
+    
+    spdlog::get("logger")->info("handleContactRelationUpdate: updateContactRelation completed successfully");
 }
 
 void MailStore::handleContactRelationDelete(json data, shared_ptr<Account> account) {
     assertCorrectThread();
-    if (data.count("email") == 0) {
-        spdlog::get("logger")->error("handleContactRelationDelete: email is required");
+    
+    // 打印收到的完整数据用于调试
+    spdlog::get("logger")->info("handleContactRelationDelete received data: {}", data.dump());
+    
+    if (data.count("email") == 0 || data["email"].is_null()) {
+        spdlog::get("logger")->error("handleContactRelationDelete: email is required and cannot be null");
         return;
     }
     string email = data["email"].get<string>();
     
-    auto existing = findContactRelation(account->accountId(), email);
+    // 添加防护性检查获取accountId
+    string accountId;
+    try {
+        // 首先检查account对象的内部数据结构
+        if (!account || account->_data.count("aid") == 0 || account->_data["aid"].is_null()) {
+            spdlog::get("logger")->error("handleContactRelationDelete: account is null or _data['aid'] is missing/null");
+            // 尝试从任务数据中获取accountId作为fallback
+            if (data.count("aid") > 0 && !data["aid"].is_null()) {
+                accountId = data["aid"].get<string>();
+                spdlog::get("logger")->info("handleContactRelationDelete: Using accountId from task data as fallback: '{}'", accountId);
+            } else {
+                spdlog::get("logger")->error("handleContactRelationDelete: Cannot determine accountId from either account object or task data");
+                return;
+            }
+        } else {
+            accountId = account->accountId();
+            spdlog::get("logger")->info("handleContactRelationDelete: account->accountId() returned: '{}'", accountId);
+        }
+    } catch (const std::exception& e) {
+        spdlog::get("logger")->error("handleContactRelationDelete: Exception calling account->accountId(): {}", e.what());
+        // 尝试从任务数据中获取accountId作为fallback
+        if (data.count("aid") > 0 && !data["aid"].is_null()) {
+            try {
+                accountId = data["aid"].get<string>();
+                spdlog::get("logger")->info("handleContactRelationDelete: Using accountId from task data as fallback: '{}'", accountId);
+            } catch (const std::exception& e2) {
+                spdlog::get("logger")->error("handleContactRelationDelete: Exception extracting accountId from task data: {}", e2.what());
+                return;
+            }
+        } else {
+            spdlog::get("logger")->error("handleContactRelationDelete: Cannot determine accountId from either account object or task data");
+            return;
+        }
+    }
+    
+    auto existing = findContactRelation(accountId, email);
     if (existing) {
         remove(existing.get());
     }else{

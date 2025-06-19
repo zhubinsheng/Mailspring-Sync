@@ -20,6 +20,7 @@ public:
     static string TABLE_NAME;
 
     Summary();
+    Summary(string id, string accountId, int version);
     Summary(Message * msg);
     Summary(json json);
     Summary(SQLite::Statement & query);
@@ -32,9 +33,6 @@ public:
     
     string threadId();
     void setThreadId(string id);
-
-    string accountId();
-    void setAccountId(string id);
     
     string briefSummary();
     void setBriefSummary(string s);
