@@ -45,6 +45,8 @@ static vector<string> ACCOUNT_RESET_QUERIES = {
     "DELETE FROM `Calendar` WHERE `accountId` = ?",
     "DELETE FROM `ModelPluginMetadata` WHERE `accountId` = ?",
     "DELETE FROM `DetatchedPluginMetadata` WHERE `accountId` = ?",
+    "DELETE FROM `Summary` WHERE `accountId` = ?",
+    "DELETE FROM `ContactRelation` WHERE `accountId` = ?",
     "DELETE FROM `Account` WHERE `id` = ?",
 };
 
@@ -215,8 +217,11 @@ static vector<string> V8_SETUP_QUERIES = {
 
 static vector<string> V9_SETUP_QUERIES = {
     "CREATE TABLE IF NOT EXISTS `Summary` ("
-        "messageId VARCHAR(40) PRIMARY KEY,"
+        "id VARCHAR(40) PRIMARY KEY,"
         "accountId VARCHAR(8) NOT NULL,"
+        "version INTEGER DEFAULT 0,"
+        "data TEXT,"
+        "messageId VARCHAR(40),"
         "threadId VARCHAR(40) NOT NULL,"
         "briefSummary TEXT,"
         "messageSummary TEXT,"
@@ -225,11 +230,18 @@ static vector<string> V9_SETUP_QUERIES = {
         "emergency INTEGER DEFAULT 0,"
         "category TEXT)",
     
+    "CREATE INDEX IF NOT EXISTS SummaryThreadIndex ON Summary(accountId, threadId)",
+    "CREATE INDEX IF NOT EXISTS SummaryMessageIndex ON Summary(accountId, messageId)",
+    
     "CREATE TABLE IF NOT EXISTS `ContactRelation` ("
         "id VARCHAR(40) PRIMARY KEY,"
         "accountId VARCHAR(8) NOT NULL,"
+        "version INTEGER DEFAULT 0,"
+        "data TEXT,"
         "email TEXT NOT NULL,"
         "relation TEXT)",
+    
+    "CREATE INDEX IF NOT EXISTS ContactRelationEmailIndex ON ContactRelation(accountId, email)",
 
     "ALTER TABLE `File` ADD COLUMN size INTEGER DEFAULT 0",
     "ALTER TABLE `File` ADD COLUMN contentType TEXT",
@@ -246,11 +258,12 @@ static vector<string> V9_SETUP_QUERIES = {
     "  m.starred, "
     "  m.draft, "
     "  m.threadId, "
-    "  s.MessageSummary, "
-    "  s.ThreadSummary, "
-    "  s.Important, "
-    "  s.Emergency, "
-    "  s.Catagory, "
+    "  s.briefSummary, "
+    "  s.messageSummary, "
+    "  s.threadSummary, "
+    "  s.important, "
+    "  s.emergency, "
+    "  s.category, "
     "  json_extract(m.data, '$.bcc') AS bcc, "
     "  json_extract(m.data, '$.cc') AS cc, "
     "  json_extract(m.data, '$.from') AS from_, "
@@ -266,7 +279,7 @@ static vector<string> V9_SETUP_QUERIES = {
     "  m.data AS message_raw_json, "
     "  f.data AS file_raw_json "
     "FROM Message m "
-    "LEFT JOIN Summary s ON m.id = s.MessageId "
+    "LEFT JOIN Summary s ON m.id = s.messageId "
     "LEFT JOIN File f ON json_extract(f.data, '$.messageId') = m.id"
 };
 

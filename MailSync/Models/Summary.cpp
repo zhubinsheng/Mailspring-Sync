@@ -8,7 +8,19 @@ string Summary::TABLE_NAME = "Summary";
 
 Summary::Summary() : MailModel(json::object()) {
     _data["messageId"] = "";
-    _data["accountId"] = "";
+    _data["threadId"] = "";
+    _data["briefSummary"] = "";
+    _data["messageSummary"] = "";
+    _data["threadSummary"] = "";
+    _data["important"] = false;
+    _data["emergency"] = false;
+    _data["category"] = "";
+}
+
+Summary::Summary(string id, string accountId, int version) :
+    MailModel(id, accountId, version)
+{
+    _data["messageId"] = "";
     _data["threadId"] = "";
     _data["briefSummary"] = "";
     _data["messageSummary"] = "";
@@ -22,7 +34,6 @@ Summary::Summary(Message * msg) :
     MailModel(msg->id(), msg->accountId(), 0)
 {
     _data["messageId"] = msg->id();
-    _data["accountId"] = msg->accountId();
     _data["threadId"] = msg->threadId();
     _data["briefSummary"] = "";
     _data["messageSummary"] = "";
@@ -34,7 +45,6 @@ Summary::Summary(Message * msg) :
 
 Summary::Summary(json json) : MailModel(json) {
     if (json.contains("messageId")) _data["messageId"] = json["messageId"];
-    if (json.contains("accountId")) _data["accountId"] = json["accountId"];
     if (json.contains("threadId")) _data["threadId"] = json["threadId"];
     if (json.contains("briefSummary")) _data["briefSummary"] = json["briefSummary"];
     if (json.contains("messageSummary")) _data["messageSummary"] = json["messageSummary"];
@@ -50,7 +60,7 @@ Summary::Summary(SQLite::Statement & query) :
 }
 
 string Summary::constructorName() {
-    return _data["__cls"].get<string>();
+    return _data["__cls"].is_null() ? "" : _data["__cls"].get<string>();
 }
 
 string Summary::tableName() {
@@ -58,7 +68,7 @@ string Summary::tableName() {
 }
 
 string Summary::messageId() {
-    return _data["messageId"].get<string>();
+    return _data["messageId"].is_null() ? "" : _data["messageId"].get<string>();
 }
 
 void Summary::setMessageId(string id) {
@@ -66,23 +76,15 @@ void Summary::setMessageId(string id) {
 }
 
 string Summary::threadId() {
-    return _data["threadId"].get<string>();
+    return _data["threadId"].is_null() ? "" : _data["threadId"].get<string>();
 }
 
 void Summary::setThreadId(string id) {
     _data["threadId"] = id;
 }
 
-string Summary::accountId() {
-    return _data["accountId"].get<string>();
-}
-
-void Summary::setAccountId(string id) {
-    _data["accountId"] = id;
-}
-
 string Summary::briefSummary() {
-    return _data["briefSummary"].get<string>();
+    return _data["briefSummary"].is_null() ? "" : _data["briefSummary"].get<string>();
 }
 
 void Summary::setBriefSummary(string s) {
@@ -90,7 +92,7 @@ void Summary::setBriefSummary(string s) {
 }
 
 string Summary::messageSummary() {
-    return _data["messageSummary"].get<string>();
+    return _data["messageSummary"].is_null() ? "" : _data["messageSummary"].get<string>();
 }
 
 void Summary::setMessageSummary(string s) {
@@ -98,7 +100,7 @@ void Summary::setMessageSummary(string s) {
 }
 
 string Summary::threadSummary() {
-    return _data["threadSummary"].get<string>();
+    return _data["threadSummary"].is_null() ? "" : _data["threadSummary"].get<string>();
 }
 
 void Summary::setThreadSummary(string s) {
@@ -106,7 +108,7 @@ void Summary::setThreadSummary(string s) {
 }
 
 bool Summary::isImportant() {
-    return _data["important"].get<bool>();
+    return _data["important"].is_null() ? false : _data["important"].get<bool>();
 }
 
 void Summary::setImportant(bool v) {
@@ -114,7 +116,7 @@ void Summary::setImportant(bool v) {
 }
 
 bool Summary::isEmergency() {
-    return _data["emergency"].get<bool>();
+    return _data["emergency"].is_null() ? false : _data["emergency"].get<bool>();
 }
 
 void Summary::setEmergency(bool v) {
@@ -122,7 +124,7 @@ void Summary::setEmergency(bool v) {
 }
 
 string Summary::category() {
-    return _data["category"].get<string>();
+    return _data["category"].is_null() ? "" : _data["category"].get<string>();
 }
 
 void Summary::setCategory(string s) {
@@ -131,8 +133,11 @@ void Summary::setCategory(string s) {
 
 vector<string> Summary::columnsForQuery() {
     return {
-        "messageId",
+        "id",
+        "data", 
         "accountId",
+        "version",
+        "messageId",
         "threadId",
         "briefSummary",
         "messageSummary",
@@ -144,8 +149,8 @@ vector<string> Summary::columnsForQuery() {
 }
 
 void Summary::bindToQuery(SQLite::Statement * query) {
+    MailModel::bindToQuery(query);
     query->bind(":messageId", messageId());
-    query->bind(":accountId", accountId());
     query->bind(":threadId", threadId());
     query->bind(":briefSummary", briefSummary());
     query->bind(":messageSummary", messageSummary());
