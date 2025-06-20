@@ -4,7 +4,7 @@
 # Windows uses ./build.cmd.
 #
 export MAILSYNC_DIR=$( cd $(dirname $0) ; pwd -P );
-export APP_ROOT_DIR="$MAILSYNC_DIR/../app"
+export APP_ROOT_DIR="$MAILSYNC_DIR/app"
 export APP_DIST_DIR="$APP_ROOT_DIR/dist"
 export DEP_BUILDS_DIR=/tmp/mailsync-build-deps-v2 # Note: also referenced in CMakeLists
 
