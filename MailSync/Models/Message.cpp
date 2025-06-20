@@ -1,4 +1,3 @@
-
 //  Message.cpp
 //  MailSync
 //
@@ -508,5 +507,52 @@ json Message::toJSONDispatch() {
     if (version() == 1) {
         j["headersSyncComplete"] = true;
     }
+    return j;
+}
+
+json Message::toJSONDispatchWithSummary(MailStore * store) {
+    // 先获取基础的Message JSON数据
+    json j = toJSONDispatch();
+    
+    // 如果提供了store，尝试查找并合并Summary数据
+    if (store != nullptr && !threadId().empty()) {
+        try {
+            auto summary = store->findSummaryForThread(accountId(), threadId());
+            if (summary != nullptr) {
+                // 合并Summary的字段到Message JSON中
+                j["summary"] = {
+                    {"briefSummary", summary->briefSummary()},
+                    {"messageSummary", summary->messageSummary()},
+                    {"threadSummary", summary->threadSummary()},
+                    {"important", summary->isImportant()},
+                    {"emergency", summary->isEmergency()},
+                    {"category", summary->category()}
+                };
+                
+                // 标记这个Message包含了Summary数据
+                j["hasSummary"] = true;
+            } else {
+                // 没有找到Summary数据，设置默认值
+                j["summary"] = {
+                    {"briefSummary", ""},
+                    {"messageSummary", ""},
+                    {"threadSummary", ""},
+                    {"important", false},
+                    {"emergency", false},
+                    {"category", ""}
+                };
+                j["hasSummary"] = false;
+            }
+        } catch (const std::exception& e) {
+            // 如果查找Summary时出错，记录日志但不影响基础Message数据的返回
+            // 注意：这里需要包含spdlog头文件，或者使用其他日志方式
+            // spdlog::get("logger")->warn("Failed to load summary for message {}: {}", id(), e.what());
+            j["hasSummary"] = false;
+        }
+    } else {
+        // 没有提供store或threadId为空，无法查找Summary
+        j["hasSummary"] = false;
+    }
+    
     return j;
 }

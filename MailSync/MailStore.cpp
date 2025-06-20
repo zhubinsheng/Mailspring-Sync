@@ -732,6 +732,10 @@ void MailStore::handleSummaryUpdate(json data, shared_ptr<Account> account) {
                                 existing->messageId(), existing->messageSummary(), existing->briefSummary(), existing->threadSummary());
 
     save(existing.get());
+    
+    // Summary 更新后，自动推送对应线程中的所有 Message 数据（包含 Summary 信息）
+    spdlog::get("logger")->info("handleSummaryUpdate: Auto-triggering message updates with summary data");
+    triggerMessagesWithSummaryUpdate(accountId, threadId);
 }
 
 void MailStore::handleSummaryDelete(json data, shared_ptr<Account> account) {
@@ -787,6 +791,10 @@ void MailStore::handleSummaryDelete(json data, shared_ptr<Account> account) {
     }else{
         spdlog::get("logger")->error("handleSummaryDelete: summary not found for threadId: {}", threadId);
     }
+    
+    // Summary 删除后，也要推送对应线程中的 Message 数据（不包含 Summary 信息）
+    spdlog::get("logger")->info("handleSummaryDelete: Auto-triggering message updates after summary deletion");
+    triggerMessagesWithSummaryUpdate(accountId, threadId);
 }
 
 #pragma mark Contact Relation Queries
@@ -806,7 +814,7 @@ void MailStore::updateContactRelation(string accountId, string email, string rel
         spdlog::get("logger")->info("updateContactRelation: About to save existing ContactRelation with id='{}', accountId='{}', email='{}', relation='{}', version={}", 
                                     existing->id(), existing->accountId(), existing->email(), existing->relation(), existing->version());
         
-        save(existing.get());
+            save(existing.get());
     } else {
         auto newRelation = make_shared<ContactRelation>(accountId, email, relation);
         
@@ -957,6 +965,34 @@ void MailStore::handleContactRelationDelete(json data, shared_ptr<Account> accou
         remove(existing.get());
     }else{
         spdlog::get("logger")->error("handleContactRelationDelete: contact relation not found for email: {}", email);
+    }
+}
+
+void MailStore::triggerMessagesWithSummaryUpdate(string accountId, string threadId) {
+    assertCorrectThread();
+    
+    try {
+        // 查找该Thread中的所有Message
+        auto messages = findAll<Message>(Query().equal("accountId", accountId).equal("threadId", threadId));
+        
+        spdlog::get("logger")->info("triggerMessagesWithSummaryUpdate: Found {} messages in thread {}", messages.size(), threadId);
+        
+        // 触发每个Message的重新推送，使用DeltaStreamItem来包含Summary数据
+        for (auto& msg : messages) {
+            // 创建一个包含Summary数据的自定义JSON
+            json msgWithSummary = msg->toJSONDispatchWithSummary(this);
+            
+            // 创建DeltaStreamItem并直接通过SharedDeltaStream推送
+            vector<json> jsonArray = {msgWithSummary};
+            DeltaStreamItem item(DELTA_TYPE_PERSIST, msg->tableName(), jsonArray);
+            SharedDeltaStream()->emit(item, _streamMaxDelay);
+            
+            spdlog::get("logger")->info("triggerMessagesWithSummaryUpdate: Pushed message {} with summary data", msg->id());
+        }
+        
+        spdlog::get("logger")->info("triggerMessagesWithSummaryUpdate: Successfully triggered {} messages with summary", messages.size());
+    } catch (const std::exception& e) {
+        spdlog::get("logger")->error("triggerMessagesWithSummaryUpdate: Exception: {}", e.what());
     }
 }
 
