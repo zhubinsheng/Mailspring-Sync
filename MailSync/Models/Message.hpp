@@ -146,6 +146,7 @@ public:
     void afterRemove(MailStore * store);
 
     json toJSONDispatch();
+    json toJSONDispatchWithSummary(MailStore * store = nullptr);
 
     bool _skipThreadUpdatesAfterSave;
 };
