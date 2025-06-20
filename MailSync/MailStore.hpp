@@ -112,6 +112,7 @@ public:
     shared_ptr<Summary> findSummaryForThread(string accountId, string threadId);
     void handleSummaryUpdate(json data, shared_ptr<Account> account);
     void handleSummaryDelete(json data, shared_ptr<Account> account);
+    void triggerMessagesWithSummaryUpdate(string accountId, string threadId);
     
     // Contact relation queries
     shared_ptr<ContactRelation> findContactRelation(string accountId, string email);
