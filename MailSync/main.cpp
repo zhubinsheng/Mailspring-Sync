@@ -427,6 +427,8 @@ void runListenOnMainThread(shared_ptr<Account> account) {
 
         try {
             string type = packet.count("type") ? packet["type"].get<string>() : "";
+            spdlog::get("logger")->info("Received packet type: {}", type);
+            spdlog::get("logger")->info("Account info - id: {}, email: {}", account->id(), account->emailAddress());
 
             if (type == "queue-task") {
                 packet["task"]["v"] = 0;
