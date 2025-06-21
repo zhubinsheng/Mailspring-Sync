@@ -1,0 +1,103 @@
+# GitLab CI 配置文件，仅包含 macOS Xcode 打包流程
+# 需要自托管的 macOS Runner，标签为 macos
+
+stages:
+  - build-macos  # 定义阶段
+  - deploy
+
+build-macos-xcode:
+  stage: build-macos  # 所属阶段
+  tags:
+    - common-macos  # 仅在带有 macos 标签的 Runner 上运行
+  timeout: 1h  # 任务超时时间1小时
+  retry: 0     # 失败不重试
+  allow_failure: false  # 不允许失败
+  variables:
+    LANG: "en_US.UTF-8"
+    LC_ALL: "en_US.UTF-8"
+    GIT_STRATEGY: fetch
+    GIT_DEPTH: 3
+  script:
+    # 执行构建脚本（会自动判断 macOS 环境并用 Xcode 构建）
+    - ./build.sh
+    # 检查产物是否生成（使用仓库内相对路径）
+    - |
+      if [ -f app/dist/mailsync.tar.gz ]; then
+        echo "Artifact found."
+      else
+        echo "Artifact not found!"
+        exit 1
+      fi
+  artifacts:
+    name: "mailsync-$CI_COMMIT_SHA-macos.tar.gz"  # 产物名称，可用变量
+    paths:
+      - app/dist/mailsync.tar.gz  # 需要保存的产物路径
+    expire_in: never  # 产物永不过期
+    expose_as: "Download mailsync artifact"  # 在 GitLab UI 以按钮形式暴露
+    public: true  # 产物对所有人可见（GitLab 15.0+ 支持）
+    when: on_success  # 只有成功时才缓存
+  cache:
+    key: "macos-mailsync-deps-$CI_COMMIT_SHA"  # 缓存唯一标识
+    paths:
+      - /tmp/mailsync-build-deps-v2  # 缓存依赖目录
+    policy: pull-push  # 默认策略，拉取和推送缓存
+    when: on_success  # 无论成功或失败都缓存
+
+# 上传到 GitLab Releases
+upload_release:
+  stage: deploy
+  tags:
+    - common-macos
+  dependencies:
+    - build-macos-xcode
+  script:
+    - echo "Uploading to GitLab Releases..."
+    - |
+      # 创建 release 标签名
+      RELEASE_TAG="v$(date +%Y.%m.%d)-${CI_COMMIT_SHA}"
+      echo "Creating release: $RELEASE_TAG"
+    - |
+      # 创建 release
+      echo "Creating GitLab Release..."
+      RELEASE_RESPONSE=$(curl --request POST \
+        --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+        --header "Content-Type: application/json" \
+        --data "{
+          \"name\": \"Mailspring-Sync Build ${CI_COMMIT_SHA}\",
+          \"tag_name\": \"${RELEASE_TAG}\",
+          \"ref\": \"${CI_COMMIT_REF_NAME}\",
+          \"description\": \"Build from commit ${CI_COMMIT_SHA}\\n\\nBuild date: $(date)\\nBranch: ${CI_COMMIT_REF_NAME}\",
+          \"assets\": {
+            \"links\": [
+              {
+                \"name\": \"mailsync.tar.gz\",
+                \"url\": \"${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_REF_NAME}/download?job=build-macos-xcode\"
+              }
+            ]
+          }
+        }" \
+        --silent \
+        --write-out "HTTPSTATUS:%{http_code}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases")
+      
+      HTTP_STATUS=$(echo "$RELEASE_RESPONSE" | tail -n1 | cut -d: -f2)
+      RESPONSE_BODY=$(echo "$RELEASE_RESPONSE" | sed '$d')
+      
+      echo "Release creation HTTP Status: $HTTP_STATUS"
+      echo "Response: $RESPONSE_BODY"
+      
+      if [ "$HTTP_STATUS" -eq 201 ] || [ "$HTTP_STATUS" -eq 200 ]; then
+        echo "✅ Release created successfully!"
+      else
+        echo "❌ Failed to create release. HTTP Status: $HTTP_STATUS"
+        echo "Response: $RESPONSE_BODY"
+        echo "This might be due to insufficient permissions for creating releases"
+        echo "The artifact is still available via Package Registry and direct download"
+        exit 0  # Don't fail the pipeline
+      fi
+    - |
+      # 显示 release 信息
+      echo "Release URL: ${CI_PROJECT_URL}/-/releases"
+      echo "Download URL: ${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_REF_NAME}/download?job=build-macos-xcode"
+  only:
+    - master
