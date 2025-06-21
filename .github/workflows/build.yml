@@ -22,39 +22,35 @@ jobs:
         include:
           - os: ubuntu-22.04
             env: CC=gcc-5 CXX=g++-5
+            build_in_docker: true
+            docker_image: ubuntu:16.04
           - os: macos-13
             osx_image: xcode13.2
+            build_in_docker: false
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt update
-          sudo apt install -y \
-            autoconf automake build-essential clang cmake execstack fakeroot \
-            g++-5 git libc-ares-dev libctemplate-dev libcurl4-openssl-dev \
-            libglib2.0-dev libgnome-keyring-dev libicu-dev libsasl2-dev \
-            libsasl2-modules libsasl2-modules-gssapi-mit libsecret-1-dev \
-            libssl-dev libnss3=2:3.28.4-0ubuntu0.16.04.14 libnss3-dev \
-            libtidy-dev libtool libxext-dev libxkbfile-dev libxml2-dev \
-            libxtst-dev rpm uuid-dev xvfb
-
-      - name: Start Xvfb for Linux
-        if: runner.os == 'Linux'
-        run: |
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
-            Xvfb :99 & export DISPLAY=:99.0
-          fi
-
-      - name: Create directories
-        run: |
-          mkdir -p ../app
-          mkdir -p ../app/dist
+      - name: Build in Docker (Ubuntu 16.04)
+        if: matrix.build_in_docker == true
+        uses: addnab/docker-run-action@v3
+        with:
+          image: ${{ matrix.docker_image }}
+          options: -v ${{ github.workspace }}:/workspace
+          run: |
+            apt-get update && apt-get install -y \
+              autoconf automake build-essential clang cmake execstack fakeroot \
+              g++-5 git libc-ares-dev libctemplate-dev libcurl4-openssl-dev \
+              libglib2.0-dev libgnome-keyring-dev libicu-dev libsasl2-dev \
+              libsasl2-modules libsasl2-modules-gssapi-mit libsecret-1-dev \
+              libssl-dev libnss3=2:3.28.4-0ubuntu0.16.04.14 libnss3-dev \
+              libtidy-dev libtool libxext-dev libxkbfile-dev libxml2-dev \
+              libxtst-dev rpm uuid-dev xvfb wget && \
+            cd /workspace && ./build.sh
 
       - name: Run build script
+        if: matrix.build_in_docker == false
         run: ./build.sh
 
       - name: Upload artifact (Linux/macOS)
@@ -65,6 +61,7 @@ jobs:
           path: app/dist/mailsync.tar.gz
 
       - name: Cache build dependencies
+        if: matrix.build_in_docker == false
         uses: actions/cache@v3
         with:
           path: /tmp/mailsync-build-deps-v2
