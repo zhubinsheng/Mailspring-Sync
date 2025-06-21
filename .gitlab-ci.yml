@@ -1,0 +1,83 @@
+# GitLab CI 配置文件，仅包含 macOS Xcode 打包流程
+# 需要自托管的 macOS Runner，标签为 macos
+
+stages:
+  - build-macos  # 定义阶段
+  - deploy
+
+build-macos-xcode:
+  stage: build-macos  # 所属阶段
+  tags:
+    - common-macos  # 仅在带有 macos 标签的 Runner 上运行
+  timeout: 1h  # 任务超时时间1小时
+  retry: 0     # 失败不重试
+  allow_failure: false  # 不允许失败
+  variables:
+    LANG: "en_US.UTF-8"
+    LC_ALL: "en_US.UTF-8"
+    GIT_STRATEGY: fetch
+    GIT_DEPTH: 3
+  script:
+    # 执行构建脚本（会自动判断 macOS 环境并用 Xcode 构建）
+    - ./build.sh
+    # 检查产物是否生成（使用仓库内相对路径）
+    - |
+      if [ -f app/dist/mailsync.tar.gz ]; then
+        echo "Artifact found."
+      else
+        echo "Artifact not found!"
+        exit 1
+      fi
+  artifacts:
+    name: "mailsync-$CI_COMMIT_SHA-macos.tar.gz"  # 产物名称，可用变量
+    paths:
+      - app/dist/mailsync.tar.gz  # 需要保存的产物路径
+    expire_in: never  # 产物永不过期
+    expose_as: "Download mailsync artifact"  # 在 GitLab UI 以按钮形式暴露
+    public: true  # 产物对所有人可见（GitLab 15.0+ 支持）
+    when: on_success  # 只有成功时才缓存
+
+# 上传到 GitLab Releases
+upload_release:
+  stage: deploy
+  tags:
+    - common-macos
+  dependencies:
+    - build-macos-xcode
+  script:
+    - echo "Uploading to GitLab Releases..."
+    - |
+      # 创建 release 标签名
+      RELEASE_TAG="$CI_COMMIT_TAG"
+      echo "Creating release: $RELEASE_TAG"
+    - |
+      # 创建 release
+      echo "Creating GitLab Release..."
+      RELEASE_RESPONSE=$(curl --request POST \
+        --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+        --header "Content-Type: application/json" \
+        --data "{
+          \"name\": \"Mailspring-Sync ${CI_COMMIT_TAG}\",
+          \"tag_name\": \"${CI_COMMIT_TAG}\",
+          \"ref\": \"${CI_COMMIT_REF_NAME}\",
+          \"description\": \"Release ${CI_COMMIT_TAG}\\n\\nBuild date: $(date)\\nCommit: ${CI_COMMIT_SHA}\",
+          \"assets\": {
+            \"links\": [
+              {
+                \"name\": \"mailsync.tar.gz\",
+                \"url\": \"${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_REF_NAME}/download?job=build-macos-xcode\"
+              }
+            ]
+          }
+        }" \
+        --silent \
+        --write-out "HTTPSTATUS:%{http_code}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases")
+      
+      echo "Response: $RELEASE_RESPONSE"
+    - |
+      # 显示 release 信息
+      echo "Release URL: ${CI_PROJECT_URL}/-/releases"
+      echo "Download URL: ${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_REF_NAME}/download?job=build-macos-xcode"
+  only:
+    - tags
