@@ -443,6 +443,20 @@ void TaskProcessor::performLocal(Task * task) {
         } else if (cname == "DestroyContactGroupTask") {
             performLocalDestroyContactGroup(task);
 
+        } 
+        // 新增：处理 summary 和 contact-relation 相关任务
+        else if (cname == "summary-update") {
+            if (!task->data().count("data")) return;
+            store->handleSummaryUpdate(task->data()["data"], account);
+        } else if (cname == "summary-delete") {
+            if (!task->data().count("data")) return;
+            store->handleSummaryDelete(task->data()["data"], account);
+        } else if (cname == "contact-relation-update") {
+            if (!task->data().count("data")) return;
+            store->handleContactRelationUpdate(task->data()["data"], account);
+        } else if (cname == "contact-relation-delete") {
+            if (!task->data().count("data")) return;
+            store->handleContactRelationDelete(task->data()["data"], account);
         } else {
             logger->error("Unsure of how to process this task type {}", cname);
         }

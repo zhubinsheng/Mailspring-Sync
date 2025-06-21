@@ -269,6 +269,25 @@ string MailUtils::localTimestampForTime(time_t time) {
     return string(buffer);
 }
 
+string MailUtils::iso8601StringFromTime(time_t time) {
+    // Some messages can have date=-1 if no Date: header is present. Win32
+    // doesn't allow this value, so we always convert it to one second past 1970.
+    if (time == -1) {
+        time = 1;
+    }
+    
+    char buffer[32];
+#if defined(_MSC_VER)
+    tm ptm;
+    gmtime_s(&ptm, &time);
+    strftime(buffer, 32, "%Y-%m-%dT%H:%M:%SZ", &ptm);
+#else
+    tm * ptm = gmtime(&time);
+    strftime(buffer, 32, "%Y-%m-%dT%H:%M:%SZ", ptm);
+#endif
+    return string(buffer);
+}
+
 string MailUtils::namespacePrefixOrBlank(IMAPSession * session) {
     if (!session->defaultNamespace()->mainPrefix()) {
         return "";

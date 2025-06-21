@@ -26,6 +26,8 @@
 #include "Query.hpp"
 #include "DeltaStream.hpp"
 #include "MailUtils.hpp"
+#include "Summary.hpp"
+#include "ContactRelation.hpp"
 
 using namespace nlohmann;
 using namespace std;
@@ -105,6 +107,17 @@ public:
     vector<shared_ptr<Label>> allLabelsCache(string accountId);
 
     void setStreamDelay(int streamMaxDelay);
+    
+    // Summary queries
+    shared_ptr<Summary> findSummaryForThread(string accountId, string threadId);
+    void handleSummaryUpdate(json data, shared_ptr<Account> account);
+    void handleSummaryDelete(json data, shared_ptr<Account> account);
+    
+    // Contact relation queries
+    shared_ptr<ContactRelation> findContactRelation(string accountId, string email);
+    void updateContactRelation(string accountId, string email, string relation);
+    void handleContactRelationUpdate(json data, shared_ptr<Account> account);
+    void handleContactRelationDelete(json data, shared_ptr<Account> account);
     
     // Detatched plugin metadata storage
     
