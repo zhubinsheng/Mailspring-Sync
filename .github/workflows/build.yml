@@ -6,6 +6,8 @@ on:
       - master
       - 'ci-*'
       - 'stable*'
+    tags:
+      - 'v*'
   pull_request:
     branches:
       - master
@@ -21,7 +23,7 @@ jobs:
         os: [ubuntu-22.04, macos-13]
         include:
           - os: ubuntu-22.04
-            env: CC=gcc-5 CXX=g++-5
+            docker_image: ubuntu:16.04
           - os: macos-13
             osx_image: xcode13.2
 
@@ -29,45 +31,56 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt update
-          sudo apt install -y \
-            autoconf automake build-essential clang cmake execstack fakeroot \
-            g++-5 git libc-ares-dev libctemplate-dev libcurl4-openssl-dev \
-            libglib2.0-dev libgnome-keyring-dev libicu-dev libsasl2-dev \
-            libsasl2-modules libsasl2-modules-gssapi-mit libsecret-1-dev \
-            libssl-dev libnss3=2:3.28.4-0ubuntu0.16.04.14 libnss3-dev \
-            libtidy-dev libtool libxext-dev libxkbfile-dev libxml2-dev \
-            libxtst-dev rpm uuid-dev xvfb
+      - name: Setup cache directory
+        if: matrix.os == 'ubuntu-22.04'
+        run: mkdir -p .cache/mailsync-build-deps-v2 .cache/opt-openssl
 
-      - name: Start Xvfb for Linux
-        if: runner.os == 'Linux'
-        run: |
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
-            Xvfb :99 & export DISPLAY=:99.0
-          fi
+      - name: Cache build dependencies and opt directory
+        if: matrix.os == 'ubuntu-22.04'
+        uses: actions/cache@v3
+        with:
+          path: |
+            .cache/mailsync-build-deps-v2
+            .cache/opt-openssl
+          key: ${{ matrix.os }}-mailsync-cache-${{ hashFiles('build.sh') }}
+          restore-keys: |
+            ${{ matrix.os }}-mailsync-cache-
 
-      - name: Create directories
-        run: |
-          mkdir -p ../app
-          mkdir -p ../app/dist
+      - name: Build in Docker (for ubuntu)
+        if: matrix.os == 'ubuntu-22.04'
+        uses: addnab/docker-run-action@v3
+        with:
+          image: ${{ matrix.docker_image }}
+          options: -v ${{ github.workspace }}:/workspace -v ${{ github.workspace }}/.cache/mailsync-build-deps-v2:/tmp/mailsync-build-deps-v2 -v ${{ github.workspace }}/.cache/opt-openssl:/opt/openssl
+          run: |
+            cd /workspace
+            ./build.sh
 
-      - name: Run build script
+      - name: Run build script (for macos)
+        if: matrix.os == 'macos-13'
         run: ./build.sh
 
       - name: Upload artifact (Linux/macOS)
         if: success()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: mailsync-${GITHUB_SHA:0:8}-${{ runner.os }}
-          path: ../app/dist/mailsync.tar.gz
+          name: mailsync-${{ github.sha }}-${{ runner.os }}.tar.gz
+          path: app/dist/mailsync.tar.gz
 
-      - name: Cache build dependencies
-        uses: actions/cache@v3
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: /tmp/mailsync-build-deps-v2
-          key: ${{ runner.os }}-mailsync-deps-${{ hashFiles('**/build.sh') }}
-          restore-keys: |
-            ${{ runner.os }}-mailsync-deps-
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/*

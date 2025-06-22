@@ -36,42 +36,49 @@ elif [[ "$OSTYPE" == "linux-gnu" ]]; then
     mkdir "$DEP_BUILDS_DIR"
   fi
 
-  if [ -d "$DEP_BUILDS_DIR/openssl-1.1.0f" ]; then
-    echo "Installing openssl-1.1.0f"
-    cd "$DEP_BUILDS_DIR/openssl-1.1.0f"
-    sudo make install
-    sudo ldconfig
-  else
-    echo "Building and installing openssl-1.1.0f"
+  apt-get update
+  apt-get install -y \
+  autoconf automake build-essential clang cmake execstack fakeroot \
+  g++-5 git libc-ares-dev libctemplate-dev libcurl4-openssl-dev \
+  libglib2.0-dev libgnome-keyring-dev libicu-dev libsasl2-dev \
+  libsasl2-modules libsasl2-modules-gssapi-mit libsecret-1-dev \
+  libssl-dev libnss3=2:3.28.4-0ubuntu0.16.04.14 libnss3-dev \
+  libtidy-dev libtool libxext-dev libxkbfile-dev libxml2-dev \
+  libxtst-dev rpm uuid-dev xvfb wget liblzma-dev && \
+
+  # OpenSSL configuration
+  if [ ! -d "$DEP_BUILDS_DIR/openssl-1.1.0f" ]; then
+    echo "Downloading openssl-1.1.0f"
     cd "$DEP_BUILDS_DIR"
     wget -q https://openssl.org/source/openssl-1.1.0f.tar.gz
     tar -xzf openssl-1.1.0f.tar.gz
-    cd openssl-1.1.0f
-    sudo ./config --prefix=/opt/openssl --openssldir=/opt/openssl shared
-    sudo make
-    sudo make install
-    sudo ldconfig
   fi
+  
+  if [ ! -f "/opt/openssl/lib/libssl.so.1.1" ] || [ ! -f "/opt/openssl/lib/libcrypto.so.1.1" ]; then
+    echo "Installing openssl-1.1.0f"
+    cd "$DEP_BUILDS_DIR/openssl-1.1.0f"
+    ./config --prefix=/opt/openssl --openssldir=/opt/openssl shared
+    make
+    make install
+  fi
+  ldconfig
 
-
-  if [ -d "$DEP_BUILDS_DIR/curl-7.70.0" ]; then
-    echo "Installing curl-7.70.0..."
-    cd "$DEP_BUILDS_DIR/curl-7.70.0"
-    sudo make install prefix=/usr >/dev/null
-  else
-    # Install curl from source because the Ubuntu trusty version
-    # is too old. We need v7.46 or greater.
-    echo "Building and installing curl-7.70.0..."
+  # cURL configuration
+  if [ ! -d "$DEP_BUILDS_DIR/curl-7.70.0" ]; then
+    echo "Downloading curl-7.70.0"
     cd "$DEP_BUILDS_DIR"
-    sudo apt-get build-dep curl
     wget -q http://curl.haxx.se/download/curl-7.70.0.tar.bz2
     tar -xjf curl-7.70.0.tar.bz2
-    cd curl-7.70.0
+  fi
+  
+  if [ ! -f "/usr/lib/libcurl.a" ]; then
+    echo "Installing curl-7.70.0..."
+    cd "$DEP_BUILDS_DIR/curl-7.70.0"
     ./configure --quiet --disable-cookies --disable-ldaps --disable-ldap --disable-ftp --disable-ftps --disable-gopher --disable-dict --disable-imap --disable-imaps --disable-pop3 --disable-pop3s --disable-rtsp --disable-smb --disable-smtp --disable-smtps --disable-telnet --disable-tftp --disable-shared --enable-static --enable-ares --without-libidn --without-librtmp --with-ssl=/opt/openssl
     make >/dev/null
-    sudo make install prefix=/usr >/dev/null
-    sudo ldconfig
+    make install prefix=/usr >/dev/null
   fi
+  ldconfig
   
 
   echo "OpenSSL files:"
@@ -79,14 +86,15 @@ elif [[ "$OSTYPE" == "linux-gnu" ]]; then
   ls /opt/openssl/lib
 
   echo "Symbolic linking new libssl libs into /usr/lib to workaround weird libetpan autogen:"
-  sudo ln -s /opt/openssl/lib/libssl.so.1.1 /usr/lib/libssl.so.1.1
-  sudo ln -s /opt/openssl/lib/libcrypto.so.1.1 /usr/lib/libcrypto.so.1.1
+  ln -sf /opt/openssl/lib/libssl.so.1.1 /usr/lib/libssl.so.1.1
+  ln -sf /opt/openssl/lib/libcrypto.so.1.1 /usr/lib/libcrypto.so.1.1
 
   echo "Building and installing libetpan..."
   cd "$MAILSYNC_DIR/Vendor/libetpan"
   ./autogen.sh --with-openssl=/opt/openssl
   make >/dev/null
-  sudo make install prefix=/usr >/dev/null
+  make install prefix=/usr >/dev/null
+  ldconfig
 
   # build mailcore2
   echo "Building mailcore2..."
