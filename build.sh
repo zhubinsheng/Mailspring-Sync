@@ -4,7 +4,7 @@
 # Windows uses ./build.cmd.
 #
 export MAILSYNC_DIR=$( cd $(dirname $0) ; pwd -P );
-export APP_ROOT_DIR="$MAILSYNC_DIR/../app"
+export APP_ROOT_DIR="$MAILSYNC_DIR/app"
 export APP_DIST_DIR="$APP_ROOT_DIR/dist"
 export DEP_BUILDS_DIR=/tmp/mailsync-build-deps-v2 # Note: also referenced in CMakeLists
 
@@ -12,8 +12,11 @@ set -e
 mkdir -p "$APP_DIST_DIR"
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
+  echo "Building on macOS with Xcode"
   cd "$MAILSYNC_DIR"
-  gem install xcpretty;
+  if ! command -v xcpretty >/dev/null 2>&1; then
+    gem install xcpretty;
+  fi
   set -o pipefail && xcodebuild -scheme mailsync -configuration Release | xcpretty;
 
   # the xcodebuild copies the build products to the APP_ROOT_DIR and codesigns
