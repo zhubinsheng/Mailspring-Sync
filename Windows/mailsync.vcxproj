@@ -133,6 +133,8 @@ _TIMESPEC_DEFINED;SQLITE_ENABLE_FTS5;CURL_STATICLIB;SPDLOG_WCHAR_FILENAMES;%(Pre
     <ClCompile Include="..\MailSync\Models\MailModel.cpp" />
     <ClCompile Include="..\MailSync\Models\Message.cpp" />
     <ClCompile Include="..\MailSync\Models\Task.cpp" />
+    <ClCompile Include="..\MailSync\Models\ContactRelation.cpp" />
+    <ClCompile Include="..\MailSync\Models\Summary.cpp" />
     <ClCompile Include="..\MailSync\Models\Thread.cpp" />
     <ClCompile Include="..\MailSync\NetworkRequestUtils.cpp" />
     <ClCompile Include="..\MailSync\ProgressCollectors.cpp" />
