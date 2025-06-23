@@ -20,7 +20,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-22.04, macos-13]
+        os: [ubuntu-22.04, macos-13, windows-2022]
         include:
           - os: ubuntu-22.04
             docker_image: ubuntu:16.04
@@ -59,8 +59,37 @@ jobs:
       - name: Run build script (for macos)
         if: matrix.os == 'macos-13'
         run: ./build.sh
+        
+      - name: Set up MSVC (for windows)
+        if: matrix.os == 'windows-2022'
+        uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Upload artifact (Linux/macOS)
+      - name: Build with MSBuild (for windows)
+        if: matrix.os == 'windows-2022'
+        run: |
+          cd Windows
+          msbuild.exe mailsync.sln /property:Configuration=Release /property:Platform=Win32
+
+      - name: Copy DLL dependencies and output (for windows)
+        if: matrix.os == 'windows-2022'
+        run: |
+          New-Item -Path "app/dist" -ItemType Directory -Force
+          Copy-Item -Path "Windows\Release\*" -Destination "app\dist" -Recurse -Force
+          # Copy only the necessary modern runtime libraries. Old ones are not present on windows-2022.
+          Copy-Item -Path "C:\Windows\SysWOW64\msvcp140.dll" -Destination "app\dist" -Force -ErrorAction SilentlyContinue
+          Copy-Item -Path "C:\Windows\SysWOW64\vcruntime140.dll" -Destination "app\dist" -Force -ErrorAction SilentlyContinue
+          Copy-Item -Path "C:\Program Files (x86)\Windows Kits\10\Redist\ucrt\DLLs\x86\*" -Destination "app\dist" -Recurse -Force
+
+      - name: Archive to mailsync.tar.gz (for windows)
+        if: matrix.os == 'windows-2022'
+        shell: powershell
+        run: |
+          # 只打包 exe、dll、pdb
+          & "C:\Program Files\7-Zip\7z.exe" a -ttar mailsync.tar app/dist/mailsync.exe app/dist/*.dll app/dist/*.pdb
+          & "C:\Program Files\7-Zip\7z.exe" a -tgzip mailsync.tar.gz mailsync.tar
+          Move-Item -Path mailsync.tar.gz -Destination app/dist/mailsync.tar.gz -Force
+
+      - name: Upload artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
@@ -80,7 +109,16 @@ jobs:
         with:
           path: artifacts
 
+      - name: Prepare release assets
+        run: |
+          cp artifacts/mailsync-*-Linux.tar.gz/mailsync.tar.gz mailsync-${{ github.ref_name }}-Linux.tar.gz
+          cp artifacts/mailsync-*-Windows.tar.gz/mailsync.tar.gz mailsync-${{ github.ref_name }}-Windows.tar.gz
+          cp artifacts/mailsync-*-macOS.tar.gz/mailsync.tar.gz mailsync-${{ github.ref_name }}-macOS.tar.gz
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/*
+          files: |
+            mailsync-${{ github.ref_name }}-Linux.tar.gz
+            mailsync-${{ github.ref_name }}-Windows.tar.gz
+            mailsync-${{ github.ref_name }}-macOS.tar.gz
