@@ -227,6 +227,8 @@ public:
         _emit(delta);
     }
     
+    // 新增：Summary标签多对多操作
+    void setTagsForSummary(const string& summaryId, const vector<string>& tags);
 
 private:
 

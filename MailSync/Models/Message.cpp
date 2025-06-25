@@ -519,6 +519,13 @@ json Message::toJSONDispatchWithSummary(MailStore * store) {
         try {
             auto summary = store->findSummaryForThread(accountId(), threadId());
             if (summary != nullptr) {
+                // 查 tags
+                vector<string> tags;
+                SQLite::Statement tagQuery(store->db(), "SELECT tagId FROM SummaryTagRelation WHERE summaryId = ?");
+                tagQuery.bind(1, summary->id());
+                while (tagQuery.executeStep()) {
+                    tags.push_back(tagQuery.getColumn(0).getString());
+                }
                 // 合并Summary的字段到Message JSON中
                 j["summary"] = {
                     {"briefSummary", summary->briefSummary()},
@@ -526,7 +533,9 @@ json Message::toJSONDispatchWithSummary(MailStore * store) {
                     {"threadSummary", summary->threadSummary()},
                     {"important", summary->isImportant()},
                     {"emergency", summary->isEmergency()},
-                    {"category", summary->category()}
+                    {"urgencyStatus", summary->urgencyStatus()},
+                    {"SummaryTagStatus", summary->SummaryTagStatus()},
+                    {"tags", tags}
                 };
                 
                 // 标记这个Message包含了Summary数据
@@ -539,7 +548,9 @@ json Message::toJSONDispatchWithSummary(MailStore * store) {
                     {"threadSummary", ""},
                     {"important", false},
                     {"emergency", false},
-                    {"category", ""}
+                    {"urgencyStatus", 0},
+                    {"SummaryTagStatus", 0},
+                    {"tags", vector<string>{}}
                 };
                 j["hasSummary"] = false;
             }

@@ -49,8 +49,11 @@ public:
     bool isEmergency();
     void setEmergency(bool v);
     
-    string category();
-    void setCategory(string s);
+    int urgencyStatus();
+    void setUrgencyStatus(int v);
+    
+    int SummaryTagStatus();
+    void setSummaryTagStatus(int v);
     
     vector<string> columnsForQuery() override;
     void bindToQuery(SQLite::Statement * query) override;

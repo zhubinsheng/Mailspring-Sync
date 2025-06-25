@@ -14,7 +14,8 @@ Summary::Summary() : MailModel(json::object()) {
     _data["threadSummary"] = "";
     _data["important"] = false;
     _data["emergency"] = false;
-    _data["category"] = "";
+    _data["urgencyStatus"] = 0;
+    _data["SummaryTagStatus"] = 0;
 }
 
 Summary::Summary(string id, string accountId, int version) :
@@ -27,7 +28,8 @@ Summary::Summary(string id, string accountId, int version) :
     _data["threadSummary"] = "";
     _data["important"] = false;
     _data["emergency"] = false;
-    _data["category"] = "";
+    _data["urgencyStatus"] = 0;
+    _data["SummaryTagStatus"] = 0;
 }
 
 Summary::Summary(Message * msg) :
@@ -40,7 +42,8 @@ Summary::Summary(Message * msg) :
     _data["threadSummary"] = "";
     _data["important"] = false;
     _data["emergency"] = false;
-    _data["category"] = "";
+    _data["urgencyStatus"] = 0;
+    _data["SummaryTagStatus"] = 0;
 }
 
 Summary::Summary(json json) : MailModel(json) {
@@ -51,7 +54,8 @@ Summary::Summary(json json) : MailModel(json) {
     if (json.contains("threadSummary")) _data["threadSummary"] = json["threadSummary"];
     if (json.contains("important")) _data["important"] = json["important"];
     if (json.contains("emergency")) _data["emergency"] = json["emergency"];
-    if (json.contains("category")) _data["category"] = json["category"];
+    if (json.contains("urgencyStatus")) _data["urgencyStatus"] = json["urgencyStatus"];
+    if (json.contains("SummaryTagStatus")) _data["SummaryTagStatus"] = json["SummaryTagStatus"];
 }
 
 Summary::Summary(SQLite::Statement & query) :
@@ -123,12 +127,20 @@ void Summary::setEmergency(bool v) {
     _data["emergency"] = v;
 }
 
-string Summary::category() {
-    return _data["category"].is_null() ? "" : _data["category"].get<string>();
+int Summary::urgencyStatus() {
+    return _data["urgencyStatus"].is_null() ? 0 : _data["urgencyStatus"].get<int>();
 }
 
-void Summary::setCategory(string s) {
-    _data["category"] = s;
+void Summary::setUrgencyStatus(int v) {
+    _data["urgencyStatus"] = v;
+}
+
+int Summary::SummaryTagStatus() {
+    return _data["SummaryTagStatus"].is_null() ? 0 : _data["SummaryTagStatus"].get<int>();
+}
+
+void Summary::setSummaryTagStatus(int v) {
+    _data["SummaryTagStatus"] = v;
 }
 
 vector<string> Summary::columnsForQuery() {
@@ -144,7 +156,8 @@ vector<string> Summary::columnsForQuery() {
         "threadSummary",
         "important",
         "emergency",
-        "category"
+        "urgencyStatus",
+        "SummaryTagStatus"
     };
 }
 
@@ -155,7 +168,8 @@ void Summary::bindToQuery(SQLite::Statement * query) {
     query->bind(":briefSummary", briefSummary());
     query->bind(":messageSummary", messageSummary());
     query->bind(":threadSummary", threadSummary());
+    query->bind(":urgencyStatus", urgencyStatus());
     query->bind(":important", isImportant());
     query->bind(":emergency", isEmergency());
-    query->bind(":category", category());
+    query->bind(":SummaryTagStatus", SummaryTagStatus());
 } 

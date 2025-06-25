@@ -228,11 +228,37 @@ static vector<string> V9_SETUP_QUERIES = {
         "threadSummary TEXT,"
         "important INTEGER DEFAULT 0,"
         "emergency INTEGER DEFAULT 0,"
-        "category TEXT)",
-    
+        "urgencyStatus INTEGER DEFAULT 0,"
+        "SummaryTagStatus INTEGER DEFAULT 0"
+    ")",
     "CREATE INDEX IF NOT EXISTS SummaryThreadIndex ON Summary(accountId, threadId)",
     "CREATE INDEX IF NOT EXISTS SummaryMessageIndex ON Summary(accountId, messageId)",
-    
+
+    "CREATE TABLE IF NOT EXISTS `SummaryTag` ("
+        "id VARCHAR(40) PRIMARY KEY,"
+        "accountId VARCHAR(8),"
+        "version INTEGER,"
+        "data TEXT,"
+        "createdAt DATETIME,"
+        "updatedAt DATETIME"
+    ")",
+    "INSERT OR IGNORE INTO `SummaryTag` (id) VALUES ('Work Note')",
+    "INSERT OR IGNORE INTO `SummaryTag` (id) VALUES ('Bill')",
+    "INSERT OR IGNORE INTO `SummaryTag` (id) VALUES ('Travel')",
+    "INSERT OR IGNORE INTO `SummaryTag` (id) VALUES ('E-commerce Shopping')",
+
+    "CREATE TABLE IF NOT EXISTS `SummaryTagRelation` ("
+        "id VARCHAR(40) PRIMARY KEY,"
+        "accountId VARCHAR(8),"
+        "version INTEGER DEFAULT 0,"
+        "data TEXT,"
+        "summaryId VARCHAR(40) NOT NULL,"
+        "tagId VARCHAR(40) NOT NULL,"
+        "UNIQUE (summaryId, tagId)"
+    ")",
+    "CREATE INDEX IF NOT EXISTS `SummaryTagRelationTagIndex` ON `SummaryTagRelation`(accountId, tagId)",
+    "CREATE INDEX IF NOT EXISTS `SummaryTagRelationSummaryIndex` ON `SummaryTagRelation`(accountId, summaryId)",
+
     "CREATE TABLE IF NOT EXISTS `ContactRelation` ("
         "id VARCHAR(40) PRIMARY KEY,"
         "accountId VARCHAR(8) NOT NULL,"
@@ -263,7 +289,9 @@ static vector<string> V9_SETUP_QUERIES = {
     "  s.threadSummary, "
     "  s.important, "
     "  s.emergency, "
-    "  s.category, "
+    "  s.urgencyStatus, "
+    "  s.SummaryTagStatus, "
+    "  (SELECT group_concat(tagId, ',') FROM SummaryTagRelation WHERE summaryId = s.id) AS tags, "
     "  json_extract(m.data, '$.bcc') AS bcc, "
     "  json_extract(m.data, '$.cc') AS cc, "
     "  json_extract(m.data, '$.from') AS from_, "

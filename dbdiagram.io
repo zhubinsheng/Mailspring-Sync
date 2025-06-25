@@ -235,7 +235,6 @@ Table Summary {
   threadSummary text
   important integer [default: 0]
   emergency integer [default: 0]
-  category text
 }
 
 // 补充 File 表（之前有但重新完整列出）

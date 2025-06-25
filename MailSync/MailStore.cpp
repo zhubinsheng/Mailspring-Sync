@@ -673,7 +673,7 @@ void MailStore::handleSummaryUpdate(json data, shared_ptr<Account> account) {
     spdlog::get("logger")->info("handleSummaryUpdate: Starting field updates");
 
     // 更新字符串字段
-    const vector<string> stringFields = {"messageSummary", "briefSummary", "threadSummary", "category"};
+    const vector<string> stringFields = {"messageSummary", "briefSummary", "threadSummary"};
     for (const string& field : stringFields) {
         if (data.count(field) > 0 && !data[field].is_null()) {
             try {
@@ -686,8 +686,6 @@ void MailStore::handleSummaryUpdate(json data, shared_ptr<Account> account) {
                     existing->setBriefSummary(value);
                 } else if (field == "threadSummary") {
                     existing->setThreadSummary(value);
-                } else if (field == "category") {
-                    existing->setCategory(value);
                 }
                 
                 spdlog::get("logger")->info("handleSummaryUpdate: Successfully set {}", field);
@@ -706,6 +704,7 @@ void MailStore::handleSummaryUpdate(json data, shared_ptr<Account> account) {
             bool value = data["important"].get<bool>();
             spdlog::get("logger")->info("handleSummaryUpdate: Setting important to {}", value);
             existing->setImportant(value);
+            existing->setUrgencyStatus(1);
             spdlog::get("logger")->info("handleSummaryUpdate: Successfully set important");
         } catch (const std::exception& e) {
             spdlog::get("logger")->error("handleSummaryUpdate: Exception setting important: {}", e.what());
@@ -718,11 +717,21 @@ void MailStore::handleSummaryUpdate(json data, shared_ptr<Account> account) {
             bool value = data["emergency"].get<bool>();
             spdlog::get("logger")->info("handleSummaryUpdate: Setting emergency to {}", value);
             existing->setEmergency(value);
+            existing->setUrgencyStatus(1);
             spdlog::get("logger")->info("handleSummaryUpdate: Successfully set emergency");
         } catch (const std::exception& e) {
             spdlog::get("logger")->error("handleSummaryUpdate: Exception setting emergency: {}", e.what());
             return;
         }
+    }
+
+    if (data.count("tags") > 0 && data["tags"].is_array()) {
+        vector<string> tags;
+        for (const auto& tag : data["tags"]) {
+            tags.push_back(tag.get<string>());
+        }
+        setTagsForSummary(existing->id(), tags);
+        existing->setSummaryTagStatus(1);
     }
 
     // DEBUG: 在保存Summary前打印对象状态
@@ -993,6 +1002,19 @@ void MailStore::triggerMessagesWithSummaryUpdate(string accountId, string thread
         spdlog::get("logger")->info("triggerMessagesWithSummaryUpdate: Successfully triggered {} messages with summary", messages.size());
     } catch (const std::exception& e) {
         spdlog::get("logger")->error("triggerMessagesWithSummaryUpdate: Exception: {}", e.what());
+    }
+}
+
+void MailStore::setTagsForSummary(const string& summaryId, const vector<string>& tags) {
+    SQLite::Statement del(db(), "DELETE FROM SummaryTagRelation WHERE summaryId = ?");
+    del.bind(1, summaryId);
+    del.exec();
+    SQLite::Statement ins(db(), "INSERT INTO SummaryTagRelation (summaryId, tagId) VALUES (?, ?)");
+    for (const auto& tag : tags) {
+        ins.bind(1, summaryId);
+        ins.bind(2, tag);
+        ins.exec();
+        ins.reset();
     }
 }
 
