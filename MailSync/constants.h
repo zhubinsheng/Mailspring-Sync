@@ -274,7 +274,7 @@ static vector<string> V9_SETUP_QUERIES = {
     "ALTER TABLE `File` ADD COLUMN messageId VARCHAR(40)",
     "ALTER TABLE `File` ADD COLUMN updateTime DATETIME",
 
-    "CREATE VIEW IF NOT EXISTS MessageFullWithFileView AS "
+    "CREATE VIEW IF NOT EXISTS MessageFullWithFilesView AS "
     "SELECT "
     "  m.id AS messageId, "
     "  m.accountId, "
@@ -298,17 +298,22 @@ static vector<string> V9_SETUP_QUERIES = {
     "  json_extract(m.data, '$.to') AS to_, "
     "  json_extract(m.data, '$.folder.id') AS folder_id, "
     "  json_extract(m.data, '$.folder.path') AS folder_path, "
-    "  f.id AS file_id, "
-    "  f.filename, "
-    "  f.size, "
-    "  f.contentType, "
-    "  json_extract(f.data, '$.messageId') AS file_message_id, "
-    "  strftime('%Y-%m-%dT%H:%M:%SZ', f.updateTime, 'unixepoch') AS updateTimeISO, "
-    "  m.data AS message_raw_json, "
-    "  f.data AS file_raw_json "
+    "  json_group_array( "
+    "    json_object( "
+    "      'id', f.id, "
+    "      'filename', f.filename, "
+    "      'size', f.size, "
+    "      'contentType', f.contentType, "
+    "      'messageId', f.messageId, "
+    "      'updateTimeISO', strftime('%Y-%m-%dT%H:%M:%SZ', f.updateTime, 'unixepoch'), "
+    "      'raw_json', f.data "
+    "    ) "
+    "  ) AS files, "
+    "  m.data AS message_raw_json "
     "FROM Message m "
     "LEFT JOIN Summary s ON m.id = s.messageId "
-    "LEFT JOIN File f ON json_extract(f.data, '$.messageId') = m.id"
+    "LEFT JOIN File f ON f.messageId = m.id "
+    "GROUP BY m.id"
 };
 
 static map<string, string> COMMON_FOLDER_NAMES = {
