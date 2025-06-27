@@ -84,10 +84,9 @@ jobs:
         if: matrix.os == 'windows-2022'
         shell: powershell
         run: |
-          # 只打包 exe、dll、pdb
-          & "C:\Program Files\7-Zip\7z.exe" a -ttar mailsync.tar app/dist/mailsync.exe app/dist/*.dll app/dist/*.pdb
+          Set-Location app/dist
+          & "C:\Program Files\7-Zip\7z.exe" a -ttar mailsync.tar mailsync.exe *.dll *.pdb
           & "C:\Program Files\7-Zip\7z.exe" a -tgzip mailsync.tar.gz mailsync.tar
-          Move-Item -Path mailsync.tar.gz -Destination app/dist/mailsync.tar.gz -Force
 
       - name: Upload artifact
         if: success()
