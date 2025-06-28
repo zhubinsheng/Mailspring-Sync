@@ -283,6 +283,13 @@ static vector<string> V9_SETUP_QUERIES = {
     "LEFT JOIN File f ON json_extract(f.data, '$.messageId') = m.id"
 };
 
+// V9版本删除查询 - 用于开发环境重新创建V9表
+static vector<string> V9_DROP_QUERIES = {
+    "DROP VIEW IF EXISTS MessageFullWithFileView",
+    "DROP TABLE IF EXISTS Summary",
+    "DROP TABLE IF EXISTS ContactRelation"
+};
+
 static map<string, string> COMMON_FOLDER_NAMES = {
     {"gel\xc3\xb6scht", "trash"},
     {"papierkorb", "trash"},

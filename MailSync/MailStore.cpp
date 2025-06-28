@@ -19,6 +19,9 @@
 #include "Message.hpp"
 #include "Thread.hpp"
 
+#include <fstream>
+#include <iostream>
+
 using namespace mailcore;
 using namespace std;
 
@@ -109,6 +112,35 @@ void MailStore::migrate() {
     uv.executeStep();
     int version = uv.getColumn(0).getInt();
     uv.reset();
+    
+    // 开发环境V9表重新创建机制
+    string devRecreateV9 = MailUtils::getEnvUTF8("MAILSPRING_DEV_RECREATE_V9");
+    if (devRecreateV9 == "1" || devRecreateV9 == "true") {
+        cout << "\n=== DEVELOPMENT MODE: Recreating V9 tables ===" << endl;
+        
+        // 先删除V9创建的表
+        for (string sql : V9_DROP_QUERIES) {
+            try {
+                SQLite::Statement(_db, sql).exec();
+                cout << "Dropped: " << sql << endl;
+            } catch (const std::exception& e) {
+                cout << "Warning: Failed to drop " << sql << " - " << e.what() << endl;
+            }
+        }
+        
+        // 重新创建V9表
+        for (string sql : V9_SETUP_QUERIES) {
+            try {
+                SQLite::Statement(_db, sql).exec();
+                cout << "Created: " << sql << endl;
+            } catch (const std::exception& e) {
+                cout << "Warning: Failed to create " << sql << " - " << e.what() << endl;
+            }
+        }
+        
+        cout << "V9 tables recreated successfully." << endl;
+        cout << "=== DEVELOPMENT MODE END ===" << endl;
+    }
     
     string verb = version == 0 ? "Setup" : "Migration";
     
