@@ -69,6 +69,7 @@
 		43EAFEDC1F001F110046589B /* Contact.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 43EAFEDB1F001F100046589B /* Contact.cpp */; };
 		44BA62762E01922C0077084D /* ContactRelation.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 44BA62752E01922C0077084D /* ContactRelation.cpp */; };
 		44BA62852E01923C0077084D /* Summary.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 44BA62842E01923C0077084D /* Summary.cpp */; };
+		44BA629A2E13FDB50077084D /* AIChatStore.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 44BA62992E13FDB50077084D /* AIChatStore.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -279,6 +280,8 @@
 		44BA62752E01922C0077084D /* ContactRelation.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ContactRelation.cpp; sourceTree = "<group>"; };
 		44BA62832E01923C0077084D /* Summary.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = Summary.hpp; sourceTree = "<group>"; };
 		44BA62842E01923C0077084D /* Summary.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Summary.cpp; sourceTree = "<group>"; };
+		44BA62982E13FDB50077084D /* AIChatStore.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = AIChatStore.hpp; sourceTree = "<group>"; };
+		44BA62992E13FDB50077084D /* AIChatStore.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = AIChatStore.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -384,6 +387,8 @@
 		436489321EF2E905007816EC /* MailSync */ = {
 			isa = PBXGroup;
 			children = (
+				44BA62982E13FDB50077084D /* AIChatStore.hpp */,
+				44BA62992E13FDB50077084D /* AIChatStore.cpp */,
 				436489331EF2E905007816EC /* main.cpp */,
 				43256B0A21E802DD00590F1B /* DavXML.cpp */,
 				43256B0C21E802E700590F1B /* DavXML.hpp */,
@@ -703,6 +708,7 @@
 				4348E5DC1F560FAC004CFB15 /* MailStoreTransaction.cpp in Sources */,
 				43CA9A121F1174FD001A24A0 /* ThreadUtils.cpp in Sources */,
 				4368DCBF1F43851A00F22FFD /* simpio.cpp in Sources */,
+				44BA629A2E13FDB50077084D /* AIChatStore.cpp in Sources */,
 				43EAFEDC1F001F110046589B /* Contact.cpp in Sources */,
 				43A687DF220EB14C000D75CC /* Event.cpp in Sources */,
 				43CA94161EF9E610006685D0 /* MailProcessor.cpp in Sources */,

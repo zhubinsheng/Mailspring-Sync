@@ -115,16 +115,17 @@ void MailStore::migrate() {
     
     // 开发环境V9表重新创建机制
     string devRecreateV9 = MailUtils::getEnvUTF8("MAILSPRING_DEV_RECREATE_V9");
+    auto logger = spdlog::get("logger");
+    logger->info("MAILSPRING_DEV_RECREATE_V9: {}", devRecreateV9);
     if (devRecreateV9 == "1" || devRecreateV9 == "true") {
-        cout << "\n=== DEVELOPMENT MODE: Recreating V9 tables ===" << endl;
-        
+        logger->info("=== DEVELOPMENT MODE: Recreating V9 tables ===");
         // 先删除V9创建的表
         for (string sql : V9_DROP_QUERIES) {
             try {
                 SQLite::Statement(_db, sql).exec();
-                cout << "Dropped: " << sql << endl;
+                logger->info("Dropped: {}", sql);
             } catch (const std::exception& e) {
-                cout << "Warning: Failed to drop " << sql << " - " << e.what() << endl;
+                logger->warn("Failed to drop {} - {}", sql, e.what());
             }
         }
         
@@ -132,14 +133,23 @@ void MailStore::migrate() {
         for (string sql : V9_SETUP_QUERIES) {
             try {
                 SQLite::Statement(_db, sql).exec();
-                cout << "Created: " << sql << endl;
+                logger->info("Created: {}", sql);
             } catch (const std::exception& e) {
-                cout << "Warning: Failed to create " << sql << " - " << e.what() << endl;
+                logger->warn("Failed to create {} - {}", sql, e.what());
             }
         }
         
-        cout << "V9 tables recreated successfully." << endl;
-        cout << "=== DEVELOPMENT MODE END ===" << endl;
+        for (string sql : V9_SETUP_CHAT_QUERIES) {
+            try {
+                SQLite::Statement(_db, sql).exec();
+                logger->info("Created chat: {}", sql);
+            } catch (const std::exception& e) {
+                logger->warn("Failed to create chat: {} - {}", sql, e.what());
+            }
+        }
+
+        logger->info("V9 tables recreated successfully.");
+        logger->info("=== DEVELOPMENT MODE END ===");
     }
     
     string verb = version == 0 ? "Setup" : "Migration";
@@ -185,6 +195,9 @@ void MailStore::migrate() {
 
     if (version < 9) {
         for (string sql : V9_SETUP_QUERIES) {
+            SQLite::Statement(_db, sql).exec();
+        }
+        for (string sql : V9_SETUP_CHAT_QUERIES) {
             SQLite::Statement(_db, sql).exec();
         }
     }

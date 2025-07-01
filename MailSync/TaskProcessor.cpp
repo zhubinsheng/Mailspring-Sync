@@ -25,6 +25,7 @@
 #include "ProgressCollectors.hpp"
 #include "SyncException.hpp"
 #include "NetworkRequestUtils.hpp"
+#include "AIChatStore.hpp"
 
 #if defined(_MSC_VER)
 #include <direct.h>
@@ -318,6 +319,7 @@ TaskProcessor::TaskProcessor(shared_ptr<Account> account, MailStore * store, IMA
     store(store),
     logger(spdlog::get("logger")),
     session(session) {
+    aiChatStore = std::make_shared<AIChatStore>(store);
 }
 
 void TaskProcessor::cleanupTasksAfterLaunch() {
@@ -457,8 +459,31 @@ void TaskProcessor::performLocal(Task * task) {
         } else if (cname == "DestroyContactRelationTask") {
             if (!task->data().count("email")) return;
             store->handleContactRelationDelete(task->data(), account);
-        } else {
-            logger->error("Unsure of how to process this task type {}", cname);
+        } 
+        // 新增：处理 ai chat相关任务
+        try {
+            logger->info("Fun AiChat data: {}", task->data().dump());
+            if (cname == "InsertAiChatSessionTask") {
+                aiChatStore->insert(task->data()["payload"]);
+            } else if (cname == "UpdateAiChatSessionTask") {
+                aiChatStore->update(task->data()["payload"]);
+            } else if (cname == "DestroyAiChatSessionTask") {
+                aiChatStore->remove(task->data()["payload"]);
+            } else if (cname == "InsertAiMessageTask") {
+                aiChatStore->insertAiMessage(task->data()["payload"]);
+            } else if (cname == "UpdateAiMessageTask") {
+                aiChatStore->updateAiMessage(task->data()["payload"]);
+            } else if (cname == "DeleteAiMessageTask") {
+                aiChatStore->deleteAiMessage(task->data()["payload"]);
+            } else {
+                logger->error("Unsure of how to process this task type {}", cname);
+            }
+        } catch (const std::exception& ex) {
+            logger->error("[{}] -- AiChatStore error: {}", task->id(), ex.what());
+            task->setError(ex.what());
+            task->setStatus("complete");
+            store->save(task);
+            return;
         }
 
         logger->info("[{}] -- Succeeded. Changing status to `remote`", task->id());
