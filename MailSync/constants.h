@@ -283,6 +283,27 @@ static vector<string> V9_SETUP_QUERIES = {
     "LEFT JOIN File f ON json_extract(f.data, '$.messageId') = m.id"
 };
 
+static vector <string> V9_SETUP_CHAT_QUERIES = {
+    "CREATE TABLE IF NOT EXISTS AiChatSession ("
+        "id VARCHAR(40) PRIMARY KEY,"
+        "userId VARCHAR(8),"
+        "title VARCHAR(255) DEFAULT 'New Chat',"
+        "createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,"
+        "updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP)",
+
+    "CREATE TABLE IF NOT EXISTS AiMessage ("
+        "id VARCHAR(40) PRIMARY KEY,"
+        "sessionId VARCHAR(40) NOT NULL,"
+        "role VARCHAR(20) NOT NULL,"
+        "content TEXT,"
+        "isUnread TINYINT(1) DEFAULT 0,"
+        "createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,"
+        "updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,"
+        "FOREIGN KEY (sessionId) REFERENCES AiChatSession(id) ON DELETE CASCADE)",
+
+    "CREATE INDEX IF NOT EXISTS AiMessageSessionIdUpdatedAt ON AiMessage (SessionId, UpdatedAt DESC)",
+};
+
 // V9版本删除查询 - 用于开发环境重新创建V9表
 static vector<string> V9_DROP_QUERIES = {
     "DROP VIEW IF EXISTS MessageFullWithFileView",
