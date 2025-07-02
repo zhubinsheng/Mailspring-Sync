@@ -24,6 +24,7 @@
 #include "MailStore.hpp"
 #include "Account.hpp"
 #include <MailCore/MailCore.h>
+#include "AIChatStore.hpp"
 
 using namespace nlohmann;
 using namespace std;
@@ -39,6 +40,7 @@ class TaskProcessor {
     shared_ptr<spdlog::logger> logger;
     shared_ptr<Account> account;
     IMAPSession * session;
+    std::shared_ptr<AIChatStore> aiChatStore;
     
 public:
     TaskProcessor(shared_ptr<Account> account, MailStore * store, IMAPSession * session);

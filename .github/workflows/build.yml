@@ -2,17 +2,7 @@ name: Build and Upload Artifacts
 
 on:
   push:
-    branches:
-      - master
-      - 'ci-*'
-      - 'stable*'
-    tags:
-      - 'v*'
   pull_request:
-    branches:
-      - master
-      - 'ci-*'
-      - 'stable*'
 
 jobs:
   build:

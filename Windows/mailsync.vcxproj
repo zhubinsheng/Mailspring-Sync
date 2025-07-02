@@ -117,6 +117,7 @@ _TIMESPEC_DEFINED;SQLITE_ENABLE_FTS5;CURL_STATICLIB;SPDLOG_WCHAR_FILENAMES;%(Pre
     <ClCompile Include="..\MailSync\MailStoreTransaction.cpp" />
     <ClCompile Include="..\MailSync\MailUtils.cpp" />
     <ClCompile Include="..\MailSync\main.cpp" />
+    <ClCompile Include="..\MailSync\AIChatStore.cpp" />
     <ClCompile Include="..\MailSync\MetadataExpirationWorker.cpp" />
     <ClCompile Include="..\MailSync\MetadataWorker.cpp" />
     <ClCompile Include="..\MailSync\DavXML.cpp" />

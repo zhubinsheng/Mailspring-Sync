@@ -115,16 +115,17 @@ void MailStore::migrate() {
     
     // 开发环境V9表重新创建机制
     string devRecreateV9 = MailUtils::getEnvUTF8("MAILSPRING_DEV_RECREATE_V9");
+    std::cout << "MAILSPRING_DEV_RECREATE_V9: " << devRecreateV9 << std::endl;
+    std::cout << "Current database version: " << version << std::endl;
     if (devRecreateV9 == "1" || devRecreateV9 == "true") {
-        cout << "\n=== DEVELOPMENT MODE: Recreating V9 tables ===" << endl;
-        
+        std::cout << "=== DEVELOPMENT MODE: Recreating V9 tables ===" << std::endl;
         // 先删除V9创建的表
         for (string sql : V9_DROP_QUERIES) {
             try {
                 SQLite::Statement(_db, sql).exec();
-                cout << "Dropped: " << sql << endl;
+                std::cout << "Dropped: " << sql << std::endl;
             } catch (const std::exception& e) {
-                cout << "Warning: Failed to drop " << sql << " - " << e.what() << endl;
+                std::cout << "Failed to drop " << sql << " - " << e.what() << std::endl;
             }
         }
         
@@ -132,14 +133,23 @@ void MailStore::migrate() {
         for (string sql : V9_SETUP_QUERIES) {
             try {
                 SQLite::Statement(_db, sql).exec();
-                cout << "Created: " << sql << endl;
+                std::cout << "Created: " << sql << std::endl;
             } catch (const std::exception& e) {
-                cout << "Warning: Failed to create " << sql << " - " << e.what() << endl;
+                std::cout << "Failed to create " << sql << " - " << e.what() << std::endl;
             }
         }
         
-        cout << "V9 tables recreated successfully." << endl;
-        cout << "=== DEVELOPMENT MODE END ===" << endl;
+        for (string sql : V9_SETUP_CHAT_QUERIES) {
+            try {
+                SQLite::Statement(_db, sql).exec();
+                std::cout << "Created chat: " << sql << std::endl;
+            } catch (const std::exception& e) {
+                std::cout << "Failed to create chat: " << sql << " - " << e.what() << std::endl;
+            }
+        }
+
+        std::cout << "V9 tables recreated successfully." << std::endl;
+        std::cout << "=== DEVELOPMENT MODE END ===" << std::endl;
     }
     
     string verb = version == 0 ? "Setup" : "Migration";
@@ -185,6 +195,9 @@ void MailStore::migrate() {
 
     if (version < 9) {
         for (string sql : V9_SETUP_QUERIES) {
+            SQLite::Statement(_db, sql).exec();
+        }
+        for (string sql : V9_SETUP_CHAT_QUERIES) {
             SQLite::Statement(_db, sql).exec();
         }
     }
