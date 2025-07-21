@@ -459,7 +459,9 @@ void TaskProcessor::performLocal(Task * task) {
         } else if (cname == "DestroyContactRelationTask") {
             if (!task->data().count("email")) return;
             store->handleContactRelationDelete(task->data(), account);
-        } 
+        } else if (cname == "UpdateMessageDataTask") {
+          applyMessageDataPatch(task->data());
+        }
         // 新增：处理 ai chat相关任务
         try {
             logger->info("Fun AiChat data: {}", task->data().dump());
@@ -1040,6 +1042,26 @@ void TaskProcessor::performLocalDestroyContactGroup(Task * task) {
         store->save(task);
     }
     store->remove(deleted.get());
+}
+
+void TaskProcessor::applyMessageDataPatch(const json &taskData) {
+  if (!taskData.count("messageId") || !taskData.count("patch")) {
+    logger->warn("UpdateMessageDataTask missing messageId or patch");
+    return;
+  }
+  std::string id = taskData["messageId"].get<std::string>();
+  auto msg = store->find<Message>(Query().equal("id", id));
+  if (!msg) {
+    logger->warn("UpdateMessageDataTask: message not found for id={}", id);
+    return;
+  }
+  json &patch = taskData["patch"];
+  for (auto it = patch.begin(); it != patch.end(); ++it) {
+    logger->info("UpdateMessageDataTask patching message {}: {} = {}", id,
+                 it.key(), it.value().dump());
+    msg->_data[it.key()] = it.value();
+  }
+  store->save(msg.get());
 }
 
 void TaskProcessor::performRemoteDestroyContactGroup(Task * task) {
